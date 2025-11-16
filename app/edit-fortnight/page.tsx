@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, FormEvent } from 'react'
+import { useState, FormEvent, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { doc, updateDoc } from 'firebase/firestore'
 import { db } from '@/lib/firebase/config'
@@ -8,7 +8,8 @@ import { motion } from 'framer-motion'
 import { FiArrowLeft } from 'react-icons/fi'
 import Watermark from '@/components/Watermark'
 
-export default function EditFortnightPage() {
+// Componente que contiene la lógica con useSearchParams
+function EditFortnightForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const fortnightId = searchParams.get('id') || ''
@@ -106,3 +107,15 @@ export default function EditFortnightPage() {
   )
 }
 
+// Componente principal que exportas
+export default function EditFortnightPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
+        <div className="text-gray-600">Cargando...</div>
+      </div>
+    }>
+      <EditFortnightForm />
+    </Suspense>
+  )
+}

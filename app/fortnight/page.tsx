@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { collection, query, where, getDocs, getDoc, orderBy, doc, deleteDoc } from 'firebase/firestore'
 import { auth, db } from '@/lib/firebase/config'
@@ -20,7 +20,8 @@ interface Expense {
   description?: string
 }
 
-export default function FortnightPage() {
+// Componente que contiene la lógica con useSearchParams
+function FortnightContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const fortnightId = searchParams.get('id') || ''
@@ -285,3 +286,15 @@ export default function FortnightPage() {
   )
 }
 
+// Componente principal que exportas
+export default function FortnightPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
+        <div className="text-gray-600">Cargando...</div>
+      </div>
+    }>
+      <FortnightContent />
+    </Suspense>
+  )
+}
