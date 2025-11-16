@@ -1,0 +1,39 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Reglas para quincenas
+    match /fortnights/{fortnightId} {
+      // Permitir leer si el usuario está autenticado
+      allow read: if request.auth != null;
+      
+      // Permitir crear si el usuario está autenticado y el userId coincide
+      allow create: if request.auth != null && 
+                       request.auth.uid == request.resource.data.userId;
+      
+      // Permitir actualizar/eliminar si el usuario está autenticado y es el dueño
+      allow update, delete: if request.auth != null && 
+                               request.auth.uid == resource.data.userId;
+    }
+    
+    // Reglas para gastos
+    match /expenses/{expenseId} {
+      // Permitir leer si el usuario está autenticado
+      allow read: if request.auth != null;
+      
+      // Permitir crear si el usuario está autenticado y el userId coincide
+      allow create: if request.auth != null && 
+                       request.auth.uid == request.resource.data.userId;
+      
+      // Permitir actualizar/eliminar si el usuario está autenticado y es el dueño
+      allow update, delete: if request.auth != null && 
+                               request.auth.uid == resource.data.userId;
+    }
+    
+    // Reglas para usuarios
+    match /users/{userId} {
+      // Permitir leer y escribir solo si el userId coincide con el usuario autenticado
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}
+

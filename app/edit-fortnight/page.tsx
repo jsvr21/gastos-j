@@ -1,0 +1,108 @@
+'use client'
+
+import { useState, FormEvent } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { doc, updateDoc } from 'firebase/firestore'
+import { db } from '@/lib/firebase/config'
+import { motion } from 'framer-motion'
+import { FiArrowLeft } from 'react-icons/fi'
+import Watermark from '@/components/Watermark'
+
+export default function EditFortnightPage() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const fortnightId = searchParams.get('id') || ''
+  const currentTotal = searchParams.get('total') || ''
+  
+  const [total, setTotal] = useState(currentTotal)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault()
+    const totalAmount = parseFloat(total.replace(/[^0-9.-]+/g, ''))
+
+    if (!total || isNaN(totalAmount) || totalAmount <= 0) {
+      setError('Por favor ingresa un monto válido')
+      return
+    }
+
+    setLoading(true)
+    setError('')
+    
+    try {
+      await updateDoc(doc(db, 'fortnights', fortnightId), {
+        total: totalAmount,
+        updatedAt: new Date(),
+      })
+
+      router.back()
+    } catch (error: any) {
+      console.error('Error updating fortnight:', error)
+      setError('No se pudo actualizar el total de la quincena')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      <div className="container mx-auto px-4 py-8 max-w-2xl">
+        <motion.button
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          onClick={() => router.back()}
+          className="flex items-center gap-2 text-purple-600 hover:text-purple-700 font-semibold mb-6 transition"
+        >
+          <FiArrowLeft className="w-5 h-5" />
+          Cancelar
+        </motion.button>
+
+        <motion.h1
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-3xl font-bold text-gray-800 mb-8"
+        >
+          Editar Total de Quincena
+        </motion.h1>
+
+        <motion.form
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          onSubmit={handleSubmit}
+          className="bg-white rounded-2xl shadow-lg p-8 space-y-6"
+        >
+          <div>
+            <label className="block text-gray-700 font-semibold mb-2">
+              Nuevo Total de la Quincena (COP) *
+            </label>
+            <input
+              type="text"
+              placeholder="Ej: 1000000"
+              value={total}
+              onChange={(e) => setTotal(e.target.value)}
+              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition text-lg text-gray-900 placeholder:text-gray-400"
+              autoFocus
+            />
+          </div>
+
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+              {error}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold py-4 rounded-xl hover:shadow-xl transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed"
+          >
+            {loading ? 'Guardando...' : 'Actualizar Total'}
+          </button>
+        </motion.form>
+      </div>
+      <Watermark />
+    </div>
+  )
+}
+
