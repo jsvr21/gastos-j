@@ -7,6 +7,7 @@ import { auth, db } from '@/lib/firebase/config'
 import { motion } from 'framer-motion'
 import { FiArrowLeft } from 'react-icons/fi'
 import Watermark from '@/components/Watermark'
+import { useCurrencyInput } from '@/lib/hooks/useCurrencyInput'
 
 // Componente que contiene la lógica con useSearchParams
 function AddFortnightForm() {
@@ -16,16 +17,17 @@ function AddFortnightForm() {
   
   const [year, setYear] = useState(parseInt(searchParams.get('year') || currentDate.getFullYear().toString()))
   const [month, setMonth] = useState(parseInt(searchParams.get('month') || (currentDate.getMonth() + 1).toString()))
-  const [total, setTotal] = useState('')
   const [selectedDay, setSelectedDay] = useState(15)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
+  // Usar el hook de currency input
+  const totalAmount = useCurrencyInput()
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
-    const totalAmount = parseFloat(total.replace(/[^0-9.-]+/g, ''))
 
-    if (!total || isNaN(totalAmount) || totalAmount <= 0) {
+    if (!totalAmount.numericValue || totalAmount.numericValue <= 0) {
       setError('Por favor ingresa un monto válido')
       return
     }
@@ -68,7 +70,7 @@ function AddFortnightForm() {
         year,
         month,
         day: selectedDay,
-        total: totalAmount
+        total: totalAmount.numericValue
       })
 
       // Verificar si ya existe una quincena para este día
@@ -99,7 +101,7 @@ function AddFortnightForm() {
         year: year,
         month: month,
         day: selectedDay,
-        total: totalAmount,
+        total: totalAmount.numericValue, // Usar el valor numérico
         createdAt: new Date(),
       }
       
@@ -230,13 +232,21 @@ function AddFortnightForm() {
               Total de la Quincena (COP) *
             </label>
             <input
+              ref={totalAmount.inputRef}
               type="text"
-              placeholder="Ej: 1000000"
-              value={total}
-              onChange={(e) => setTotal(e.target.value)}
+              inputMode="numeric"
+              pattern="[0-9.]*"
+              placeholder="Ej: 1.000.000"
+              value={totalAmount.displayValue}
+              onChange={totalAmount.handleChange}
               className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition text-gray-900 placeholder:text-gray-400"
               autoFocus
             />
+            {totalAmount.numericValue > 0 && (
+              <p className="mt-2 text-sm text-gray-600">
+                Valor: ${totalAmount.numericValue.toLocaleString('es-CO')} COP
+              </p>
+            )}
           </div>
 
           {error && (

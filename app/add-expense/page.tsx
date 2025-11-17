@@ -7,6 +7,7 @@ import { auth, db } from '@/lib/firebase/config'
 import { motion, AnimatePresence } from 'framer-motion'
 import { FiArrowLeft, FiUpload, FiX, FiFile, FiImage, FiCheck } from 'react-icons/fi'
 import Watermark from '@/components/Watermark'
+import { useCurrencyInput } from '@/lib/hooks/useCurrencyInput'
 
 interface UploadedFile {
   url: string
@@ -23,13 +24,15 @@ function AddExpenseForm() {
   const fortnightId = searchParams.get('fortnightId') || ''
   
   const [name, setName] = useState('')
-  const [amount, setAmount] = useState('')
   const [description, setDescription] = useState('')
   const [files, setFiles] = useState<UploadedFile[]>([])
   const [uploading, setUploading] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [uploadProgress, setUploadProgress] = useState<string>('')
+
+  // Usar el hook de currency input para el monto
+  const amount = useCurrencyInput()
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = e.target.files
@@ -112,14 +115,13 @@ function AddExpenseForm() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
-    const amountValue = parseFloat(amount.replace(/[^0-9.-]+/g, ''))
 
     if (!name.trim()) {
       setError('Por favor ingresa un nombre para el gasto')
       return
     }
 
-    if (!amount || isNaN(amountValue) || amountValue <= 0) {
+    if (!amount.numericValue || amount.numericValue <= 0) {
       setError('Por favor ingresa un monto válido')
       return
     }
@@ -139,7 +141,7 @@ function AddExpenseForm() {
         userId: user.uid,
         fortnightId: fortnightId,
         name: name.trim(),
-        amount: amountValue,
+        amount: amount.numericValue, // Usar el valor numérico
         description: description.trim() || '',
         attachments: files.map(f => ({
           url: f.url,
@@ -213,12 +215,20 @@ function AddExpenseForm() {
               Monto (COP) *
             </label>
             <input
+              ref={amount.inputRef}
               type="text"
-              placeholder="Ej: 50000"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+              inputMode="numeric"
+              pattern="[0-9.]*"
+              placeholder="Ej: 50.000"
+              value={amount.displayValue}
+              onChange={amount.handleChange}
               className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition text-gray-900 placeholder:text-gray-400"
             />
+            {amount.numericValue > 0 && (
+              <p className="mt-2 text-sm text-gray-600">
+                Valor: ${amount.numericValue.toLocaleString('es-CO')} COP
+              </p>
+            )}
           </div>
 
           <div>

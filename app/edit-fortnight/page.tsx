@@ -7,6 +7,7 @@ import { db } from '@/lib/firebase/config'
 import { motion } from 'framer-motion'
 import { FiArrowLeft } from 'react-icons/fi'
 import Watermark from '@/components/Watermark'
+import { useCurrencyInput } from '@/lib/hooks/useCurrencyInput'
 
 // Componente que contiene la lógica con useSearchParams
 function EditFortnightForm() {
@@ -15,15 +16,16 @@ function EditFortnightForm() {
   const fortnightId = searchParams.get('id') || ''
   const currentTotal = searchParams.get('total') || ''
   
-  const [total, setTotal] = useState(currentTotal)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
+  // Usar el hook de currency input con valor inicial
+  const total = useCurrencyInput(currentTotal)
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
-    const totalAmount = parseFloat(total.replace(/[^0-9.-]+/g, ''))
 
-    if (!total || isNaN(totalAmount) || totalAmount <= 0) {
+    if (!total.numericValue || total.numericValue <= 0) {
       setError('Por favor ingresa un monto válido')
       return
     }
@@ -33,7 +35,7 @@ function EditFortnightForm() {
     
     try {
       await updateDoc(doc(db, 'fortnights', fortnightId), {
-        total: totalAmount,
+        total: total.numericValue,
         updatedAt: new Date(),
       })
 
@@ -78,13 +80,21 @@ function EditFortnightForm() {
               Nuevo Total de la Quincena (COP) *
             </label>
             <input
+              ref={total.inputRef}
               type="text"
-              placeholder="Ej: 1000000"
-              value={total}
-              onChange={(e) => setTotal(e.target.value)}
+              inputMode="numeric"
+              pattern="[0-9.]*"
+              placeholder="Ej: 1.000.000"
+              value={total.displayValue}
+              onChange={total.handleChange}
               className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition text-lg text-gray-900 placeholder:text-gray-400"
               autoFocus
             />
+            {total.numericValue > 0 && (
+              <p className="mt-2 text-sm text-gray-600">
+                Valor: ${total.numericValue.toLocaleString('es-CO')} COP
+              </p>
+            )}
           </div>
 
           {error && (

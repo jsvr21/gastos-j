@@ -7,6 +7,7 @@ import { db } from '@/lib/firebase/config'
 import { motion, AnimatePresence } from 'framer-motion'
 import { FiArrowLeft, FiUpload, FiX, FiFile, FiImage, FiCheck, FiTrash2 } from 'react-icons/fi'
 import Watermark from '@/components/Watermark'
+import { useCurrencyInput } from '@/lib/hooks/useCurrencyInput'
 
 interface UploadedFile {
   url: string
@@ -30,7 +31,6 @@ function EditExpenseForm() {
   const expenseId = searchParams.get('id') || ''
   
   const [name, setName] = useState('')
-  const [amount, setAmount] = useState('')
   const [description, setDescription] = useState('')
   const [existingFiles, setExistingFiles] = useState<UploadedFile[]>([])
   const [newFiles, setNewFiles] = useState<UploadedFile[]>([])
@@ -40,6 +40,9 @@ function EditExpenseForm() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [uploadProgress, setUploadProgress] = useState<string>('')
+
+  // Usar el hook de currency input
+  const amount = useCurrencyInput()
 
   useEffect(() => {
     if (expenseId) {
@@ -60,7 +63,7 @@ function EditExpenseForm() {
 
       const expenseData = expenseDoc.data() as Expense
       setName(expenseData.name)
-      setAmount(expenseData.amount.toString())
+      amount.setValue(expenseData.amount) // Establecer valor con formato
       setDescription(expenseData.description || '')
       setExistingFiles(expenseData.attachments || [])
     } catch (error) {
@@ -126,7 +129,6 @@ function EditExpenseForm() {
 
   const removeExistingFile = async (index: number) => {
     const fileToRemove = existingFiles[index]
-    // Guardamos tanto el publicId como el resourceType para eliminar correctamente
     setFilesToDelete([...filesToDelete, JSON.stringify({ 
       publicId: fileToRemove.publicId, 
       resourceType: fileToRemove.resourceType 
@@ -156,14 +158,13 @@ function EditExpenseForm() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
-    const amountValue = parseFloat(amount.replace(/[^0-9.-]+/g, ''))
 
     if (!name.trim()) {
       setError('Por favor ingresa un nombre para el gasto')
       return
     }
 
-    if (!amount || isNaN(amountValue) || amountValue <= 0) {
+    if (!amount.numericValue || amount.numericValue <= 0) {
       setError('Por favor ingresa un monto válido')
       return
     }
@@ -194,7 +195,7 @@ function EditExpenseForm() {
 
       await updateDoc(doc(db, 'expenses', expenseId), {
         name: name.trim(),
-        amount: amountValue,
+        amount: amount.numericValue,
         description: description.trim() || '',
         attachments: allAttachments.map(f => ({
           url: f.url,
@@ -278,12 +279,20 @@ function EditExpenseForm() {
               Monto (COP) *
             </label>
             <input
+              ref={amount.inputRef}
               type="text"
-              placeholder="Ej: 50000"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+              inputMode="numeric"
+              pattern="[0-9.]*"
+              placeholder="Ej: 50.000"
+              value={amount.displayValue}
+              onChange={amount.handleChange}
               className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition text-gray-900 placeholder:text-gray-400"
             />
+            {amount.numericValue > 0 && (
+              <p className="mt-2 text-sm text-gray-600">
+                Valor: ${amount.numericValue.toLocaleString('es-CO')} COP
+              </p>
+            )}
           </div>
 
           <div>
