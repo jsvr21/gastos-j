@@ -5,8 +5,9 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { collection, query, where, getDocs, getDoc, orderBy, doc, deleteDoc, updateDoc } from 'firebase/firestore'
 import { auth, db } from '@/lib/firebase/config'
 import { motion, AnimatePresence } from 'framer-motion'
-import { FiArrowLeft, FiPlus, FiEdit2, FiTrash2, FiCheck, FiFilter, FiX, FiDollarSign } from 'react-icons/fi'
+import { FiArrowLeft, FiPlus, FiEdit2, FiTrash2, FiCheck, FiFilter, FiX, FiDollarSign, FiAlertTriangle } from 'react-icons/fi'
 import Watermark from '@/components/Watermark'
+import ConfirmModal from '@/components/ConfirmModal'
 
 interface Fortnight {
   id: string
@@ -23,7 +24,6 @@ interface Expense {
 
 type FilterStatus = 'all' | 'paid' | 'unpaid'
 
-// Componente que contiene la lógica con useSearchParams
 function FortnightContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -34,6 +34,12 @@ function FortnightContent() {
   const [loading, setLoading] = useState(true)
   const [totalSpent, setTotalSpent] = useState(0)
   const [totalPaid, setTotalPaid] = useState(0)
+  
+  // Estados de modales
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [showErrorModal, setShowErrorModal] = useState(false)
+  const [errorMessage, setErrorMessage] = useState('')
+  const [expenseToDelete, setExpenseToDelete] = useState<string | null>(null)
   
   // Estados de filtros
   const [showFilters, setShowFilters] = useState(false)
@@ -56,20 +62,19 @@ function FortnightContent() {
         return
       }
 
-      // Cargar quincena
       const fortnightRef = doc(db, 'fortnights', fortnightId)
       const fortnightDoc = await getDoc(fortnightRef)
       
       if (!fortnightDoc.exists()) {
-        alert('Quincena no encontrada')
-        router.back()
+        setErrorMessage('Quincena no encontrada')
+        setShowErrorModal(true)
+        setTimeout(() => router.back(), 2000)
         return
       }
 
       const fortnightData = { id: fortnightDoc.id, ...fortnightDoc.data() } as Fortnight
       setFortnight(fortnightData)
 
-      // Cargar gastos
       try {
         const expensesRef = collection(db, 'expenses')
         const q = query(
@@ -97,7 +102,6 @@ function FortnightContent() {
         setTotalSpent(total)
         setTotalPaid(paid)
       } catch (expenseError: any) {
-        // Si hay error de índice, intentar sin orderBy
         if (expenseError.code === 'failed-precondition') {
           try {
             const expensesRef = collection(db, 'expenses')
@@ -121,7 +125,6 @@ function FortnightContent() {
               }
             })
 
-            // Ordenar manualmente por fecha
             expensesData.sort((a, b) => {
               const aDate = (a as any).createdAt?.toDate?.() || new Date(0)
               const bDate = (b as any).createdAt?.toDate?.() || new Date(0)
@@ -143,7 +146,8 @@ function FortnightContent() {
       }
     } catch (error) {
       console.error('Error loading data:', error)
-      alert('No se pudieron cargar los datos')
+      setErrorMessage('No se pudieron cargar los datos')
+      setShowErrorModal(true)
     } finally {
       setLoading(false)
     }
@@ -157,20 +161,25 @@ function FortnightContent() {
       })
       loadData()
     } catch (error) {
-      alert('No se pudo actualizar el estado del gasto')
+      setErrorMessage('No se pudo actualizar el estado del gasto')
+      setShowErrorModal(true)
     }
   }
 
-  const handleDeleteExpense = async (expenseId: string) => {
-    if (!confirm('¿Estás seguro de que deseas eliminar este gasto?')) {
-      return
-    }
+  const confirmDeleteExpense = (expenseId: string) => {
+    setExpenseToDelete(expenseId)
+    setShowDeleteModal(true)
+  }
+
+  const handleDeleteExpense = async () => {
+    if (!expenseToDelete) return
 
     try {
-      await deleteDoc(doc(db, 'expenses', expenseId))
+      await deleteDoc(doc(db, 'expenses', expenseToDelete))
       loadData()
     } catch (error) {
-      alert('No se pudo eliminar el gasto')
+      setErrorMessage('No se pudo eliminar el gasto')
+      setShowErrorModal(true)
     }
   }
 
@@ -183,22 +192,16 @@ function FortnightContent() {
 
   const getFilteredExpenses = (): Expense[] => {
     return expenses.filter(expense => {
-      // Filtro por estado de pago
       if (filterStatus === 'paid' && !expense.paid) return false
       if (filterStatus === 'unpaid' && expense.paid) return false
-
-      // Filtro por rango de precio
       if (minAmount && expense.amount < parseFloat(minAmount)) return false
       if (maxAmount && expense.amount > parseFloat(maxAmount)) return false
-
-      // Filtro por texto de búsqueda
       if (searchText) {
         const search = searchText.toLowerCase()
         const nameMatch = expense.name.toLowerCase().includes(search)
         const descMatch = expense.description?.toLowerCase().includes(search)
         if (!nameMatch && !descMatch) return false
       }
-
       return true
     })
   }
@@ -220,7 +223,6 @@ function FortnightContent() {
     return totalSpent - totalPaid
   }
 
-  // NUEVA FUNCIÓN: Saldo Actual (Total - Lo que ya pagaste)
   const getCurrentBalance = (): number => {
     if (!fortnight) return 0
     return fortnight.total - totalPaid
@@ -241,7 +243,6 @@ function FortnightContent() {
     return Math.max(0, (getRemaining() / fortnight.total) * 100)
   }
 
-  // NUEVA FUNCIÓN: Porcentaje del saldo actual
   const getCurrentBalancePercentage = (): number => {
     if (!fortnight || fortnight.total === 0) return 0
     return Math.max(0, (getCurrentBalance() / fortnight.total) * 100)
@@ -250,7 +251,7 @@ function FortnightContent() {
   if (loading || !fortnight) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
-        <p className="text-gray-500">Cargando...</p>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
       </div>
     )
   }
@@ -331,14 +332,13 @@ function FortnightContent() {
             transition={{ delay: 0.3 }}
             className="bg-white rounded-xl p-6 shadow-sm"
           >
-            <p className="text-gray-500 text-sm mb-2">Restante Final</p>
+            <p className="text-gray-500 text-sm mb-2">Sobrante</p>
             <p className="text-blue-600 text-2xl font-bold">
               ${getRemaining().toLocaleString('es-CO')}
             </p>
             <p className="text-gray-400 text-sm mt-1">{getRemainingPercentage().toFixed(1)}%</p>
           </motion.div>
 
-          {/* NUEVO PANEL: Saldo Actual */}
           <motion.div
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
@@ -418,7 +418,6 @@ function FortnightContent() {
                 </div>
 
                 <div className="grid md:grid-cols-2 gap-4">
-                  {/* Filtro por estado */}
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">
                       Estado de Pago
@@ -457,7 +456,6 @@ function FortnightContent() {
                     </div>
                   </div>
 
-                  {/* Búsqueda por texto */}
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">
                       Buscar por nombre
@@ -471,7 +469,6 @@ function FortnightContent() {
                     />
                   </div>
 
-                  {/* Rango de precio mínimo */}
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">
                       Monto Mínimo (COP)
@@ -485,7 +482,6 @@ function FortnightContent() {
                     />
                   </div>
 
-                  {/* Rango de precio máximo */}
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">
                       Monto Máximo (COP)
@@ -587,7 +583,7 @@ function FortnightContent() {
                       <FiEdit2 className="w-5 h-5" />
                     </button>
                     <button
-                      onClick={() => handleDeleteExpense(expense.id)}
+                      onClick={() => confirmDeleteExpense(expense.id)}
                       className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition"
                       title="Eliminar"
                     >
@@ -600,17 +596,45 @@ function FortnightContent() {
           </div>
         )}
       </div>
+
+      {/* Modal de confirmación para eliminar */}
+      <ConfirmModal
+        isOpen={showDeleteModal}
+        onClose={() => {
+          setShowDeleteModal(false)
+          setExpenseToDelete(null)
+        }}
+        onConfirm={handleDeleteExpense}
+        title="Eliminar Gasto"
+        message="¿Estás seguro de que deseas eliminar este gasto? Esta acción no se puede deshacer."
+        confirmText="Sí, eliminar"
+        cancelText="Cancelar"
+        type="danger"
+        icon={<FiTrash2 className="w-8 h-8" />}
+      />
+
+      {/* Modal de error */}
+      <ConfirmModal
+        isOpen={showErrorModal}
+        onClose={() => setShowErrorModal(false)}
+        title="Error"
+        message={errorMessage}
+        confirmText="Entendido"
+        type="warning"
+        icon={<FiAlertTriangle className="w-8 h-8" />}
+        showCancel={false}
+      />
+
       <Watermark />
     </div>
   )
 }
 
-// Componente principal que exportas
 export default function FortnightPage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
-        <div className="text-gray-600">Cargando...</div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
       </div>
     }>
       <FortnightContent />

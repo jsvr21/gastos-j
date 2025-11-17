@@ -6,9 +6,10 @@ import { signOut, onAuthStateChanged } from 'firebase/auth'
 import { collection, query, where, getDocs, orderBy } from 'firebase/firestore'
 import { auth, db } from '@/lib/firebase/config'
 import { motion } from 'framer-motion'
-import { FiPlus, FiLogOut, FiCalendar, FiHome, FiUser, FiSettings, FiPieChart } from 'react-icons/fi'
+import { FiPlus, FiLogOut, FiCalendar, FiHome, FiUser } from 'react-icons/fi'
 import Image from 'next/image'
 import Watermark from '@/components/Watermark'
+import ConfirmModal from '@/components/ConfirmModal'
 
 interface Month {
   year: number
@@ -23,6 +24,7 @@ export default function HomePage() {
   const [userName, setUserName] = useState('')
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
   const [activeTab, setActiveTab] = useState('home')
+  const [showLogoutModal, setShowLogoutModal] = useState(false)
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -92,10 +94,9 @@ export default function HomePage() {
     return months[month - 1] || ''
   }
 
-  const handleLogout = () => {
-    if (confirm('¿Estás seguro de que deseas cerrar sesión?')) {
-      signOut(auth)
-    }
+  const handleLogout = async () => {
+    await signOut(auth)
+    router.push('/')
   }
 
   const handleAddMonth = () => {
@@ -137,14 +138,16 @@ export default function HomePage() {
                 className="w-12 h-12 relative flex-shrink-0"
               >
                 <div className="absolute inset-0 bg-white rounded-full shadow-lg"></div>
-                <div className="absolute inset-0.5 bg-gradient-to-br from-purple-400 to-indigo-500 rounded-full flex items-center justify-center">
-                  <Image
-                    src="/icon.png"
-                    alt="Logo"
-                    width={40}
-                    height={40}
-                    className="rounded-full object-cover"
-                  />
+                <div className="absolute inset-0.5 bg-gradient-to-br from-purple-400 to-indigo-500 rounded-full p-1 flex items-center justify-center overflow-hidden">
+                  <div className="w-full h-full rounded-full overflow-hidden bg-white flex items-center justify-center">
+                    <Image
+                      src="/icon.png"
+                      alt="Logo"
+                      width={40}
+                      height={40}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
                 </div>
               </motion.div>
 
@@ -157,7 +160,7 @@ export default function HomePage() {
             </div>
 
             <button
-              onClick={handleLogout}
+              onClick={() => setShowLogoutModal(true)}
               className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition"
               title="Cerrar sesión"
             >
@@ -305,7 +308,7 @@ export default function HomePage() {
             <button
               onClick={() => {
                 setActiveTab('profile')
-                router.push('/profile')  // ← Agregar esta línea
+                router.push('/profile')
               }}
               className={`flex flex-col items-center gap-1 py-2 px-4 rounded-xl transition-all ${activeTab === 'profile'
                   ? 'text-purple-600 bg-purple-50'
@@ -323,6 +326,19 @@ export default function HomePage() {
           <p className="text-gray-300 text-[10px] font-semibold">JormanDEV © 2024</p>
         </div>
       </motion.div>
+
+      {/* Modal de confirmación personalizado */}
+      <ConfirmModal
+        isOpen={showLogoutModal}
+        onClose={() => setShowLogoutModal(false)}
+        onConfirm={handleLogout}
+        title="Cerrar Sesión"
+        message="¿Estás seguro de que deseas cerrar sesión? Tendrás que iniciar sesión nuevamente para acceder."
+        confirmText="Sí, cerrar sesión"
+        cancelText="Cancelar"
+        type="danger"
+        icon={<FiLogOut className="w-8 h-8" />}
+      />
 
       <Watermark />
     </div>
