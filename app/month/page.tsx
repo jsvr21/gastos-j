@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, Suspense } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { collection, query, where, getDocs, orderBy } from 'firebase/firestore'
 import { auth, db } from '@/lib/firebase/config'
@@ -16,8 +16,7 @@ interface Fortnight {
   total: number
 }
 
-// Componente que contiene la lógica con useSearchParams
-function MonthContent() {
+export default function MonthPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const year = parseInt(searchParams.get('year') || '0')
@@ -238,15 +237,3 @@ function MonthContent() {
   )
 }
 
-// Componente principal que exportas
-export default function MonthPage() {
-  return (
-    <Suspense fallback={
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
-        <div className="text-gray-600">Cargando...</div>
-      </div>
-    }>
-      <MonthContent />
-    </Suspense>
-  )
-}

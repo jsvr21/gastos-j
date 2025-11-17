@@ -59,4 +59,3 @@ Firestore funciona de manera diferente a las bases de datos tradicionales:
 3. Ve a **Firestore Database**
 4. Verás las colecciones `fortnights` y `expenses` cuando agregues datos
 
-

@@ -79,4 +79,3 @@ service cloud.firestore {
 3. Verifica que copiaste TODO el código sin modificar nada
 4. Intenta cerrar sesión y volver a iniciar sesión
 
-

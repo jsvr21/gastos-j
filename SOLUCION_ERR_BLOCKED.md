@@ -89,4 +89,3 @@ Después de desactivar el bloqueador:
 3. Prueba en otro navegador (Chrome, Firefox, Edge)
 4. Prueba en modo incógnito
 
-

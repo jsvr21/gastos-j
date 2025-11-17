@@ -69,4 +69,3 @@ He modificado la aplicación para que:
 
 ¡Ahora puedes trabajar con cualquier mes sin problemas!
 
-

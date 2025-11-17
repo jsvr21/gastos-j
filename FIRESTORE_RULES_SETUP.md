@@ -101,4 +101,3 @@ service cloud.firestore {
 - **No puedo publicar las reglas:** Verifica que copiaste todo el código correctamente
 - **Sigue sin funcionar:** Verifica que estás autenticado (deberías ver tu usuario en la app)
 
-

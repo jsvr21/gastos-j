@@ -83,4 +83,3 @@ Los índices necesarios son:
 - `fortnights`: userId (Ascending), year (Ascending), month (Ascending), day (Ascending)
 - `expenses`: userId (Ascending), fortnightId (Ascending), createdAt (Descending)
 
-

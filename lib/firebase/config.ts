@@ -4,15 +4,15 @@ import { getAuth, Auth } from "firebase/auth";
 import { getFirestore, Firestore } from "firebase/firestore";
 import { getAnalytics, Analytics } from "firebase/analytics";
 
-// Firebase Config desde .env
+// Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
+  apiKey: "AIzaSyBbAkqFOz1I_mdQl_irPP0cV5jDNzZ5lHs",
+  authDomain: "gastos-a9062.firebaseapp.com",
+  projectId: "gastos-a9062",
+  storageBucket: "gastos-a9062.firebasestorage.app",
+  messagingSenderId: "731331334644",
+  appId: "1:731331334644:web:9cea33a12d9530eb22e9a1",
+  measurementId: "G-Z9W1CGJ7YN"
 };
 
 // Initialize Firebase only on client side
@@ -21,21 +21,21 @@ let auth: Auth | null = null;
 let db: Firestore | null = null;
 let analytics: Analytics | null = null;
 
-if (typeof window !== "undefined") {
+if (typeof window !== 'undefined') {
   try {
     // Initialize Firebase only if no apps exist
     app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
     auth = getAuth(app);
     db = getFirestore(app);
-
+    
     // Analytics solo se inicializa si está disponible
     try {
       analytics = getAnalytics(app);
     } catch (analyticsError) {
-      console.warn("Analytics no disponible:", analyticsError);
+      console.warn('Analytics no disponible:', analyticsError);
     }
   } catch (error) {
-    console.error("Error inicializando Firebase:", error);
+    console.error('Error inicializando Firebase:', error);
   }
 }
 
@@ -52,3 +52,4 @@ export const firebaseAnalytics = analytics;
 
 // Exportar con los nombres originales para compatibilidad
 export { firebaseApp as app, firebaseAuth as auth, firebaseDb as db, firebaseAnalytics as analytics };
+

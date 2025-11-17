@@ -2,10 +2,10 @@
 
 import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { collection, query, where, getDocs, getDoc, orderBy, doc, deleteDoc } from 'firebase/firestore'
+import { collection, query, where, getDocs, getDoc, orderBy, doc, deleteDoc, updateDoc } from 'firebase/firestore'
 import { auth, db } from '@/lib/firebase/config'
-import { motion } from 'framer-motion'
-import { FiArrowLeft, FiPlus, FiEdit2, FiTrash2 } from 'react-icons/fi'
+import { motion, AnimatePresence } from 'framer-motion'
+import { FiArrowLeft, FiPlus, FiEdit2, FiTrash2, FiCheck, FiFilter, FiX } from 'react-icons/fi'
 import Watermark from '@/components/Watermark'
 
 interface Fortnight {
@@ -18,7 +18,10 @@ interface Expense {
   name: string
   amount: number
   description?: string
+  paid?: boolean
 }
+
+type FilterStatus = 'all' | 'paid' | 'unpaid'
 
 // Componente que contiene la lógica con useSearchParams
 function FortnightContent() {
@@ -30,6 +33,14 @@ function FortnightContent() {
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [loading, setLoading] = useState(true)
   const [totalSpent, setTotalSpent] = useState(0)
+  const [totalPaid, setTotalPaid] = useState(0)
+  
+  // Estados de filtros
+  const [showFilters, setShowFilters] = useState(false)
+  const [filterStatus, setFilterStatus] = useState<FilterStatus>('all')
+  const [minAmount, setMinAmount] = useState('')
+  const [maxAmount, setMaxAmount] = useState('')
+  const [searchText, setSearchText] = useState('')
 
   useEffect(() => {
     if (fortnightId) {
@@ -71,15 +82,20 @@ function FortnightContent() {
         const querySnapshot = await getDocs(q)
         const expensesData: Expense[] = []
         let total = 0
+        let paid = 0
 
         querySnapshot.forEach((doc) => {
           const expense = { id: doc.id, ...doc.data() } as Expense
           expensesData.push(expense)
           total += expense.amount
+          if (expense.paid) {
+            paid += expense.amount
+          }
         })
 
         setExpenses(expensesData)
         setTotalSpent(total)
+        setTotalPaid(paid)
       } catch (expenseError: any) {
         // Si hay error de índice, intentar sin orderBy
         if (expenseError.code === 'failed-precondition') {
@@ -94,11 +110,15 @@ function FortnightContent() {
             const querySnapshot = await getDocs(q)
             const expensesData: Expense[] = []
             let total = 0
+            let paid = 0
 
             querySnapshot.forEach((doc) => {
               const expense = { id: doc.id, ...doc.data() } as Expense
               expensesData.push(expense)
               total += expense.amount
+              if (expense.paid) {
+                paid += expense.amount
+              }
             })
 
             // Ordenar manualmente por fecha
@@ -110,10 +130,12 @@ function FortnightContent() {
 
             setExpenses(expensesData)
             setTotalSpent(total)
+            setTotalPaid(paid)
           } catch (fallbackError) {
             console.error('Error cargando gastos:', fallbackError)
             setExpenses([])
             setTotalSpent(0)
+            setTotalPaid(0)
           }
         } else {
           throw expenseError
@@ -124,6 +146,18 @@ function FortnightContent() {
       alert('No se pudieron cargar los datos')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleTogglePaid = async (expenseId: string, currentPaidStatus: boolean) => {
+    try {
+      await updateDoc(doc(db, 'expenses', expenseId), {
+        paid: !currentPaidStatus,
+        paidAt: !currentPaidStatus ? new Date() : null
+      })
+      loadData()
+    } catch (error) {
+      alert('No se pudo actualizar el estado del gasto')
     }
   }
 
@@ -140,14 +174,60 @@ function FortnightContent() {
     }
   }
 
+  const clearFilters = () => {
+    setFilterStatus('all')
+    setMinAmount('')
+    setMaxAmount('')
+    setSearchText('')
+  }
+
+  const getFilteredExpenses = (): Expense[] => {
+    return expenses.filter(expense => {
+      // Filtro por estado de pago
+      if (filterStatus === 'paid' && !expense.paid) return false
+      if (filterStatus === 'unpaid' && expense.paid) return false
+
+      // Filtro por rango de precio
+      if (minAmount && expense.amount < parseFloat(minAmount)) return false
+      if (maxAmount && expense.amount > parseFloat(maxAmount)) return false
+
+      // Filtro por texto de búsqueda
+      if (searchText) {
+        const search = searchText.toLowerCase()
+        const nameMatch = expense.name.toLowerCase().includes(search)
+        const descMatch = expense.description?.toLowerCase().includes(search)
+        if (!nameMatch && !descMatch) return false
+      }
+
+      return true
+    })
+  }
+
+  const filteredExpenses = getFilteredExpenses()
+  const activeFiltersCount = [
+    filterStatus !== 'all',
+    minAmount !== '',
+    maxAmount !== '',
+    searchText !== ''
+  ].filter(Boolean).length
+
   const getRemaining = (): number => {
     if (!fortnight) return 0
     return Math.max(0, fortnight.total - totalSpent)
   }
 
+  const getPending = (): number => {
+    return totalSpent - totalPaid
+  }
+
   const getPercentage = (): number => {
     if (!fortnight || fortnight.total === 0) return 0
     return Math.min(100, (totalSpent / fortnight.total) * 100)
+  }
+
+  const getPaidPercentage = (): number => {
+    if (totalSpent === 0) return 0
+    return Math.min(100, (totalPaid / totalSpent) * 100)
   }
 
   const getRemainingPercentage = (): number => {
@@ -194,83 +274,278 @@ function FortnightContent() {
           </button>
         </motion.div>
 
-        <div className="grid md:grid-cols-2 gap-4 mb-8">
+        <div className="grid md:grid-cols-3 gap-4 mb-8">
           <motion.div
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             className="bg-white rounded-xl p-6 shadow-sm"
           >
-            <p className="text-gray-500 text-sm mb-2">Gastado</p>
-            <p className="text-red-600 text-2xl font-bold">
+            <p className="text-gray-500 text-sm mb-2">Total Gastos</p>
+            <p className="text-orange-600 text-2xl font-bold">
               ${totalSpent.toLocaleString('es-CO')} COP
             </p>
             <p className="text-gray-400 text-sm mt-1">{getPercentage().toFixed(1)}%</p>
           </motion.div>
 
           <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
             className="bg-white rounded-xl p-6 shadow-sm"
           >
-            <p className="text-gray-500 text-sm mb-2">Restante</p>
+            <p className="text-gray-500 text-sm mb-2">Pagado</p>
             <p className="text-green-600 text-2xl font-bold">
-              ${getRemaining().toLocaleString('es-CO')} COP
+              ${totalPaid.toLocaleString('es-CO')} COP
             </p>
-            <p className="text-gray-400 text-sm mt-1">{getRemainingPercentage().toFixed(1)}%</p>
+            <p className="text-gray-400 text-sm mt-1">{getPaidPercentage().toFixed(1)}%</p>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.2 }}
+            className="bg-white rounded-xl p-6 shadow-sm"
+          >
+            <p className="text-gray-500 text-sm mb-2">Por Pagar</p>
+            <p className="text-red-600 text-2xl font-bold">
+              ${getPending().toLocaleString('es-CO')} COP
+            </p>
+            <p className="text-gray-400 text-sm mt-1">Pendiente</p>
           </motion.div>
         </div>
 
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-gray-800">Gastos</h2>
-          <button
-            onClick={() => router.push(`/add-expense?fortnightId=${fortnightId}`)}
-            className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:shadow-lg transition-all duration-200 flex items-center gap-2"
-          >
-            <FiPlus className="w-4 h-4" />
-            Agregar
-          </button>
+          <div className="flex items-center gap-3">
+            <h2 className="text-2xl font-bold text-gray-800">Gastos</h2>
+            <span className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
+              {filteredExpenses.length} de {expenses.length}
+            </span>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className={`relative px-4 py-2 rounded-lg font-semibold transition-all duration-200 flex items-center gap-2 ${
+                showFilters || activeFiltersCount > 0
+                  ? 'bg-purple-100 text-purple-700 shadow-sm'
+                  : 'bg-white text-gray-700 hover:bg-gray-50 shadow-sm'
+              }`}
+            >
+              <FiFilter className="w-4 h-4" />
+              Filtros
+              {activeFiltersCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-purple-600 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold">
+                  {activeFiltersCount}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => router.push(`/add-expense?fortnightId=${fortnightId}`)}
+              className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:shadow-lg transition-all duration-200 flex items-center gap-2"
+            >
+              <FiPlus className="w-4 h-4" />
+              Agregar
+            </button>
+          </div>
         </div>
 
-        {expenses.length === 0 ? (
+        <AnimatePresence>
+          {showFilters && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="overflow-hidden mb-6"
+            >
+              <div className="bg-white rounded-2xl p-6 shadow-lg border-2 border-purple-100">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                    <FiFilter className="w-5 h-5 text-purple-600" />
+                    Filtrar Gastos
+                  </h3>
+                  {activeFiltersCount > 0 && (
+                    <button
+                      onClick={clearFilters}
+                      className="text-sm text-purple-600 hover:text-purple-700 font-semibold flex items-center gap-1"
+                    >
+                      <FiX className="w-4 h-4" />
+                      Limpiar filtros
+                    </button>
+                  )}
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-4">
+                  {/* Filtro por estado */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Estado de Pago
+                    </label>
+                    <div className="grid grid-cols-3 gap-2">
+                      <button
+                        onClick={() => setFilterStatus('all')}
+                        className={`py-2 px-3 rounded-lg text-sm font-semibold transition-all ${
+                          filterStatus === 'all'
+                            ? 'bg-purple-600 text-white shadow-md'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                      >
+                        Todos
+                      </button>
+                      <button
+                        onClick={() => setFilterStatus('paid')}
+                        className={`py-2 px-3 rounded-lg text-sm font-semibold transition-all ${
+                          filterStatus === 'paid'
+                            ? 'bg-green-600 text-white shadow-md'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                      >
+                        Pagados
+                      </button>
+                      <button
+                        onClick={() => setFilterStatus('unpaid')}
+                        className={`py-2 px-3 rounded-lg text-sm font-semibold transition-all ${
+                          filterStatus === 'unpaid'
+                            ? 'bg-red-600 text-white shadow-md'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                      >
+                        Sin Pagar
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Búsqueda por texto */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Buscar por nombre
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Buscar..."
+                      value={searchText}
+                      onChange={(e) => setSearchText(e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition text-gray-900 placeholder:text-gray-400"
+                    />
+                  </div>
+
+                  {/* Rango de precio mínimo */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Monto Mínimo (COP)
+                    </label>
+                    <input
+                      type="number"
+                      placeholder="Ej: 10000"
+                      value={minAmount}
+                      onChange={(e) => setMinAmount(e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition text-gray-900 placeholder:text-gray-400"
+                    />
+                  </div>
+
+                  {/* Rango de precio máximo */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Monto Máximo (COP)
+                    </label>
+                    <input
+                      type="number"
+                      placeholder="Ej: 500000"
+                      value={maxAmount}
+                      onChange={(e) => setMaxAmount(e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition text-gray-900 placeholder:text-gray-400"
+                    />
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {filteredExpenses.length === 0 ? (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             className="text-center py-12 bg-white rounded-xl shadow-sm"
           >
-            <p className="text-gray-600">No hay gastos registrados</p>
+            <p className="text-gray-600">
+              {expenses.length === 0 
+                ? 'No hay gastos registrados' 
+                : 'No se encontraron gastos con los filtros aplicados'}
+            </p>
+            {activeFiltersCount > 0 && (
+              <button
+                onClick={clearFilters}
+                className="mt-4 text-purple-600 hover:text-purple-700 font-semibold"
+              >
+                Limpiar filtros
+              </button>
+            )}
           </motion.div>
         ) : (
           <div className="grid gap-4">
-            {expenses.map((expense, index) => (
+            {filteredExpenses.map((expense, index) => (
               <motion.div
                 key={expense.id}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.05 }}
-                className="bg-white rounded-xl p-6 shadow-sm hover:shadow-md transition-all duration-200 border border-gray-100"
+                className={`bg-white rounded-xl p-6 shadow-sm hover:shadow-md transition-all duration-200 border-2 ${
+                  expense.paid ? 'border-green-200 bg-green-50/30' : 'border-gray-100'
+                }`}
               >
                 <div className="flex justify-between items-start">
-                  <div className="flex-1">
-                    <h3 className="text-lg font-semibold text-gray-800 mb-1">
-                      {expense.name}
-                    </h3>
-                    {expense.description && (
-                      <p className="text-gray-500 text-sm mb-2">{expense.description}</p>
-                    )}
-                    <p className="text-purple-600 font-bold text-lg">
-                      ${expense.amount.toLocaleString('es-CO')} COP
-                    </p>
+                  <div className="flex items-start gap-4 flex-1">
+                    <button
+                      onClick={() => handleTogglePaid(expense.id, expense.paid || false)}
+                      className={`mt-1 flex-shrink-0 w-8 h-8 rounded-lg border-2 flex items-center justify-center transition-all ${
+                        expense.paid
+                          ? 'bg-green-500 border-green-500 text-white'
+                          : 'border-gray-300 hover:border-green-400 text-transparent hover:text-gray-400'
+                      }`}
+                      title={expense.paid ? 'Marcar como no pagado' : 'Marcar como pagado'}
+                    >
+                      <FiCheck className="w-5 h-5" />
+                    </button>
+                    
+                    <div className="flex-1">
+                      <h3 className={`text-lg font-semibold mb-1 ${
+                        expense.paid ? 'text-gray-500 line-through' : 'text-gray-800'
+                      }`}>
+                        {expense.name}
+                      </h3>
+                      {expense.description && (
+                        <p className="text-gray-500 text-sm mb-2">{expense.description}</p>
+                      )}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className={`font-bold text-lg ${
+                          expense.paid ? 'text-green-600' : 'text-purple-600'
+                        }`}>
+                          ${expense.amount.toLocaleString('es-CO')} COP
+                        </p>
+                        {expense.paid ? (
+                          <span className="text-xs bg-green-100 text-green-700 px-3 py-1 rounded-full font-semibold">
+                            Pagado
+                          </span>
+                        ) : (
+                          <span className="text-xs bg-red-100 text-red-700 px-3 py-1 rounded-full font-semibold">
+                            Sin Pagar
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   </div>
+                  
                   <div className="flex gap-2 ml-4">
                     <button
                       onClick={() => router.push(`/edit-expense?id=${expense.id}&name=${encodeURIComponent(expense.name)}&amount=${expense.amount}&description=${encodeURIComponent(expense.description || '')}`)}
                       className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                      title="Editar"
                     >
                       <FiEdit2 className="w-5 h-5" />
                     </button>
                     <button
                       onClick={() => handleDeleteExpense(expense.id)}
                       className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition"
+                      title="Eliminar"
                     >
                       <FiTrash2 className="w-5 h-5" />
                     </button>

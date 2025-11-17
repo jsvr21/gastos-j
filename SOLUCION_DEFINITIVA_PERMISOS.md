@@ -100,4 +100,3 @@ Si después de probar la Opción 1 sigue sin funcionar, comparte:
 3. ¿Las reglas están publicadas en Firebase?
 4. ¿Qué error exacto ves? (copia el mensaje completo)
 
-

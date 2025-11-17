@@ -100,4 +100,3 @@ Si sigue sin funcionar, comparte:
 3. ¿Qué errores ves en la consola cuando intentas agregar una quincena?
 4. ¿Está creada la base de datos Firestore?
 
-

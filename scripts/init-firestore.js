@@ -36,4 +36,3 @@ async function initFirestore() {
 
 initFirestore();
 
-

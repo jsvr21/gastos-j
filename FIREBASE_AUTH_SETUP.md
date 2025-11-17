@@ -53,4 +53,3 @@ Si quieres crear el usuario `jormanstiv` manualmente:
 - **Error de red:** Verifica tu conexión a internet
 - **Usuario no se crea:** Verifica que Email/Password esté habilitado
 
-
