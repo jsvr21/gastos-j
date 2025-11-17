@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation'
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth'
 import { auth } from '@/lib/firebase/config'
 import { motion } from 'framer-motion'
-import { FiUser, FiLock } from 'react-icons/fi'
+import { FiUser, FiLock, FiCode } from 'react-icons/fi'
+import Image from 'next/image'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -28,7 +29,7 @@ export default function LoginPage() {
     try {
       // Verificar que auth esté inicializado
       if (!auth || typeof auth === 'object' && Object.keys(auth).length === 0) {
-        setError('Firebase no está inicializado. Por favor recarga la página.')
+        setError('El sistema no está disponible. Por favor recarga la página.')
         setLoading(false)
         return
       }
@@ -60,49 +61,108 @@ export default function LoginPage() {
             if (createError.code === 'auth/email-already-in-use') {
               setError('El usuario ya existe pero la contraseña es incorrecta')
             } else if (createError.code === 'auth/weak-password') {
-              setError('La contraseña es muy débil. Debe tener al menos 6 caracteres.')
+              setError('La contraseña es muy débil. Debe tener al menos 6 caracteres')
             } else if (createError.code === 'auth/invalid-email') {
-              setError('El formato del email no es válido')
+              setError('El formato del usuario no es válido')
             } else if (createError.code === 'auth/operation-not-allowed') {
-              setError('La autenticación por email/contraseña no está habilitada en Firebase. Por favor habilítala en la consola de Firebase.')
+              setError('El sistema de autenticación no está disponible. Contacta al administrador')
             } else {
-              setError(`Error al crear usuario: ${createError.message || 'Error desconocido'}`)
+              setError('Error al crear el usuario. Por favor intenta de nuevo')
             }
           }
         } else if (signInError.code === 'auth/wrong-password') {
           setError('Contraseña incorrecta')
         } else if (signInError.code === 'auth/invalid-email') {
-          setError('El formato del email no es válido')
+          setError('El formato del usuario no es válido')
+        } else if (signInError.code === 'auth/invalid-credential') {
+          setError('Usuario o contraseña incorrectos')
+        } else if (signInError.code === 'auth/too-many-requests') {
+          setError('Demasiados intentos fallidos. Por favor intenta más tarde')
         } else if (signInError.code === 'auth/operation-not-allowed') {
-          setError('La autenticación por email/contraseña no está habilitada en Firebase. Por favor habilítala en la consola de Firebase.')
+          setError('El sistema de autenticación no está disponible. Contacta al administrador')
         } else if (signInError.code === 'auth/network-request-failed') {
-          setError('Error de conexión. Verifica tu conexión a internet.')
+          setError('Error de conexión. Verifica tu conexión a internet')
+        } else if (signInError.code === 'auth/user-disabled') {
+          setError('Esta cuenta ha sido deshabilitada. Contacta al administrador')
         } else {
-          setError(`Error al iniciar sesión: ${signInError.message || 'Error desconocido'}`)
+          // Mensaje genérico para errores no específicos
+          setError('Credenciales incorrectas. Verifica tu usuario y contraseña')
         }
       }
     } catch (error: any) {
       console.error('Unexpected error:', error)
-      setError(error.message || 'Error inesperado. Por favor intenta de nuevo.')
+      setError('Error inesperado. Por favor intenta de nuevo')
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-600 via-purple-700 to-indigo-800 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-purple-600 via-purple-700 to-indigo-800 flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Marcas de agua decorativas */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-10 left-10 text-white/5 text-6xl font-bold transform -rotate-12">
+          JormanDEV
+        </div>
+        <div className="absolute bottom-20 right-10 text-white/5 text-6xl font-bold transform rotate-12">
+          JormanDEV
+        </div>
+        <div className="absolute top-1/2 left-1/4 text-white/5 text-4xl font-bold transform -rotate-45">
+          &lt;/&gt;
+        </div>
+        <div className="absolute top-1/3 right-1/4 text-white/5 text-4xl font-bold transform rotate-45">
+          &lt;/&gt;
+        </div>
+      </div>
+
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6 }}
-        className="w-full max-w-md"
+        className="w-full max-w-md relative z-10"
       >
+        {/* Logo y título */}
         <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2, duration: 0.6 }}
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.1, duration: 0.5 }}
           className="text-center mb-8"
         >
+          {/* Logo circular con animación */}
+          <motion.div
+            initial={{ rotate: -10, scale: 0.8 }}
+            animate={{ rotate: 0, scale: 1 }}
+            transition={{ delay: 0.2, duration: 0.5, type: "spring" }}
+            className="mx-auto w-24 h-24 mb-6 relative"
+          >
+            <div className="absolute inset-0 bg-white rounded-full shadow-2xl"></div>
+            <div className="absolute inset-1 bg-gradient-to-br from-purple-400 to-indigo-500 rounded-full p-1 flex items-center justify-center overflow-hidden">
+              <div className="w-full h-full rounded-full overflow-hidden bg-white flex items-center justify-center">
+                <Image
+                  src="/icon.png"
+                  alt="Logo"
+                  width={80}
+                  height={80}
+                  className="w-full h-full object-cover"
+                  priority
+                />
+              </div>
+            </div>
+            {/* Círculo decorativo animado */}
+            <motion.div
+              animate={{
+                scale: [1, 1.2, 1],
+                opacity: [0.5, 0, 0.5],
+              }}
+              transition={{
+                duration: 2,
+                repeat: Infinity,
+                ease: "easeInOut"
+              }}
+              className="absolute inset-0 border-4 border-white rounded-full"
+            ></motion.div>
+          </motion.div>
+
           <h1 className="text-4xl md:text-5xl font-bold text-white mb-2">
             Control de Gastos
           </h1>
@@ -116,8 +176,14 @@ export default function LoginPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4, duration: 0.6 }}
           onSubmit={handleSubmit}
-          className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl p-8 space-y-6"
+          className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl p-8 space-y-6 relative"
         >
+          {/* Marca de agua sutil dentro del formulario */}
+          <div className="absolute top-4 right-4 text-gray-200 text-xs font-semibold flex items-center gap-1">
+            <FiCode className="w-3 h-3" />
+            JormanDEV
+          </div>
+
           <div>
             <label className="block text-gray-700 font-semibold mb-2">
               Usuario
@@ -185,16 +251,38 @@ export default function LoginPage() {
           </div>
         </motion.form>
 
+        {/* Footer con marca personal destacada */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.6, duration: 0.6 }}
           className="text-center mt-8"
         >
-          <p className="text-purple-200 text-sm">JormanViafaraDEV</p>
+          <div className="bg-white/10 backdrop-blur-sm rounded-xl px-6 py-4 inline-block">
+            <div className="flex items-center gap-3 justify-center">
+              <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center">
+                <FiCode className="w-5 h-5 text-purple-600" />
+              </div>
+              <div className="text-left">
+                <p className="text-white font-bold text-sm">Desarrollado por</p>
+                <p className="text-purple-200 font-bold">JormanDEV</p>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Marca de agua adicional inferior */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.8, duration: 0.6 }}
+          className="text-center mt-4"
+        >
+          <p className="text-purple-300/60 text-xs font-semibold tracking-wider">
+            © 2024 JormanDEV - Todos los derechos reservados
+          </p>
         </motion.div>
       </motion.div>
     </div>
   )
 }
-
