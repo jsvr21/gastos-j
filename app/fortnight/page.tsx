@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { collection, query, where, getDocs, getDoc, orderBy, doc, deleteDoc, updateDoc } from 'firebase/firestore'
 import { auth, db } from '@/lib/firebase/config'
 import { motion, AnimatePresence } from 'framer-motion'
-import { FiArrowLeft, FiPlus, FiEdit2, FiTrash2, FiCheck, FiFilter, FiX } from 'react-icons/fi'
+import { FiArrowLeft, FiPlus, FiEdit2, FiTrash2, FiCheck, FiFilter, FiX, FiDollarSign } from 'react-icons/fi'
 import Watermark from '@/components/Watermark'
 
 interface Fortnight {
@@ -220,6 +220,12 @@ function FortnightContent() {
     return totalSpent - totalPaid
   }
 
+  // NUEVA FUNCIÓN: Saldo Actual (Total - Lo que ya pagaste)
+  const getCurrentBalance = (): number => {
+    if (!fortnight) return 0
+    return fortnight.total - totalPaid
+  }
+
   const getPercentage = (): number => {
     if (!fortnight || fortnight.total === 0) return 0
     return Math.min(100, (totalSpent / fortnight.total) * 100)
@@ -235,6 +241,12 @@ function FortnightContent() {
     return Math.max(0, (getRemaining() / fortnight.total) * 100)
   }
 
+  // NUEVA FUNCIÓN: Porcentaje del saldo actual
+  const getCurrentBalancePercentage = (): number => {
+    if (!fortnight || fortnight.total === 0) return 0
+    return Math.max(0, (getCurrentBalance() / fortnight.total) * 100)
+  }
+
   if (loading || !fortnight) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
@@ -245,7 +257,7 @@ function FortnightContent() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      <div className="container mx-auto px-4 py-8 max-w-4xl">
+      <div className="container mx-auto px-4 py-8 max-w-6xl">
         <motion.button
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
@@ -274,7 +286,7 @@ function FortnightContent() {
           </button>
         </motion.div>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
           <motion.div
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
@@ -319,11 +331,30 @@ function FortnightContent() {
             transition={{ delay: 0.3 }}
             className="bg-white rounded-xl p-6 shadow-sm"
           >
-            <p className="text-gray-500 text-sm mb-2">Restante</p>
+            <p className="text-gray-500 text-sm mb-2">Restante Final</p>
             <p className="text-blue-600 text-2xl font-bold">
               ${getRemaining().toLocaleString('es-CO')}
             </p>
             <p className="text-gray-400 text-sm mt-1">{getRemainingPercentage().toFixed(1)}%</p>
+          </motion.div>
+
+          {/* NUEVO PANEL: Saldo Actual */}
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.4 }}
+            className="bg-gradient-to-br from-teal-500 to-cyan-600 rounded-xl p-6 shadow-lg"
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <FiDollarSign className="w-4 h-4 text-white" />
+              <p className="text-white text-sm font-semibold">Saldo Actual</p>
+            </div>
+            <p className="text-white text-2xl font-bold">
+              ${getCurrentBalance().toLocaleString('es-CO')}
+            </p>
+            <p className="text-white/80 text-sm mt-1">
+              {getCurrentBalancePercentage().toFixed(1)}% disponible
+            </p>
           </motion.div>
         </div>
 
