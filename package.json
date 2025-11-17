@@ -9,11 +9,14 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "next": "14.0.4",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
+    "browser-image-compression": "^2.0.2",
+    "cloudinary": "^2.8.0",
     "firebase": "^10.7.1",
     "framer-motion": "^10.16.16",
+    "next": "14.0.4",
+    "next-cloudinary": "^6.17.5",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
     "react-icons": "^4.12.0"
   },
   "devDependencies": {
@@ -26,4 +29,3 @@
     "typescript": "^5"
   }
 }
-

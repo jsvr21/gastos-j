@@ -1,6 +1,16 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'res.cloudinary.com',
+        port: '',
+        pathname: '/**',
+      },
+    ],
+  },
   experimental: {
     serverComponentsExternalPackages: ['firebase', 'firebase-admin'],
   },
@@ -47,4 +57,3 @@ const nextConfig = {
 }
 
 module.exports = nextConfig
-

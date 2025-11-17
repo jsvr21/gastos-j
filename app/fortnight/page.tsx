@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { collection, query, where, getDocs, getDoc, orderBy, doc, deleteDoc, updateDoc } from 'firebase/firestore'
 import { auth, db } from '@/lib/firebase/config'
 import { motion, AnimatePresence } from 'framer-motion'
-import { FiArrowLeft, FiPlus, FiEdit2, FiTrash2, FiCheck, FiFilter, FiX, FiDollarSign, FiAlertTriangle } from 'react-icons/fi'
+import { FiArrowLeft, FiPlus, FiEdit2, FiTrash2, FiCheck, FiFilter, FiX, FiDollarSign, FiAlertTriangle, FiPaperclip, FiEye } from 'react-icons/fi'
 import Watermark from '@/components/Watermark'
 import ConfirmModal from '@/components/ConfirmModal'
 
@@ -14,12 +14,22 @@ interface Fortnight {
   total: number
 }
 
+interface Attachment {
+  url: string
+  publicId: string
+  format: string
+  resourceType: string
+  bytes: number
+  name: string
+}
+
 interface Expense {
   id: string
   name: string
   amount: number
   description?: string
   paid?: boolean
+  attachments?: Attachment[]
 }
 
 type FilterStatus = 'all' | 'paid' | 'unpaid'
@@ -175,6 +185,24 @@ function FortnightContent() {
     if (!expenseToDelete) return
 
     try {
+      const expense = expenses.find(e => e.id === expenseToDelete)
+      
+      // Eliminar archivos de Cloudinary si existen
+      if (expense?.attachments && expense.attachments.length > 0) {
+        await Promise.all(
+          expense.attachments.map(attachment =>
+            fetch('/api/upload', {
+              method: 'DELETE',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                publicId: attachment.publicId,
+                resourceType: attachment.resourceType,
+              }),
+            })
+          )
+        )
+      }
+
       await deleteDoc(doc(db, 'expenses', expenseToDelete))
       loadData()
     } catch (error) {
@@ -246,6 +274,10 @@ function FortnightContent() {
   const getCurrentBalancePercentage = (): number => {
     if (!fortnight || fortnight.total === 0) return 0
     return Math.max(0, (getCurrentBalance() / fortnight.total) * 100)
+  }
+
+  const viewExpenseDetails = (expense: Expense) => {
+    router.push(`/expense-details?id=${expense.id}`)
   }
 
   if (loading || !fortnight) {
@@ -570,11 +602,26 @@ function FortnightContent() {
                             Sin Pagar
                           </span>
                         )}
+                        {expense.attachments && expense.attachments.length > 0 && (
+                          <span className="text-xs bg-blue-100 text-blue-700 px-3 py-1 rounded-full font-semibold flex items-center gap-1">
+                            <FiPaperclip className="w-3 h-3" />
+                            {expense.attachments.length} adjunto{expense.attachments.length > 1 ? 's' : ''}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
                   
                   <div className="flex gap-2 ml-4">
+                    {expense.attachments && expense.attachments.length > 0 && (
+                      <button
+                        onClick={() => viewExpenseDetails(expense)}
+                        className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition"
+                        title="Ver detalles"
+                      >
+                        <FiEye className="w-5 h-5" />
+                      </button>
+                    )}
                     <button
                       onClick={() => router.push(`/edit-expense?id=${expense.id}&name=${encodeURIComponent(expense.name)}&amount=${expense.amount}&description=${encodeURIComponent(expense.description || '')}`)}
                       className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition"
@@ -597,7 +644,6 @@ function FortnightContent() {
         )}
       </div>
 
-      {/* Modal de confirmación para eliminar */}
       <ConfirmModal
         isOpen={showDeleteModal}
         onClose={() => {
@@ -613,7 +659,6 @@ function FortnightContent() {
         icon={<FiTrash2 className="w-8 h-8" />}
       />
 
-      {/* Modal de error */}
       <ConfirmModal
         isOpen={showErrorModal}
         onClose={() => setShowErrorModal(false)}
