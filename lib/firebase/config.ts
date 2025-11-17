@@ -6,13 +6,13 @@ import { getAnalytics, Analytics } from "firebase/analytics";
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyBbAkqFOz1I_mdQl_irPP0cV5jDNzZ5lHs",
-  authDomain: "gastos-a9062.firebaseapp.com",
-  projectId: "gastos-a9062",
-  storageBucket: "gastos-a9062.firebasestorage.app",
-  messagingSenderId: "731331334644",
-  appId: "1:731331334644:web:9cea33a12d9530eb22e9a1",
-  measurementId: "G-Z9W1CGJ7YN"
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY!,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN!,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID!,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET!,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID!,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID!,
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID!,
 };
 
 // Initialize Firebase only on client side
