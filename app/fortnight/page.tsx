@@ -274,7 +274,7 @@ function FortnightContent() {
           </button>
         </motion.div>
 
-        <div className="grid md:grid-cols-3 gap-4 mb-8">
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <motion.div
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
@@ -282,7 +282,7 @@ function FortnightContent() {
           >
             <p className="text-gray-500 text-sm mb-2">Total Gastos</p>
             <p className="text-orange-600 text-2xl font-bold">
-              ${totalSpent.toLocaleString('es-CO')} COP
+              ${totalSpent.toLocaleString('es-CO')}
             </p>
             <p className="text-gray-400 text-sm mt-1">{getPercentage().toFixed(1)}%</p>
           </motion.div>
@@ -295,7 +295,7 @@ function FortnightContent() {
           >
             <p className="text-gray-500 text-sm mb-2">Pagado</p>
             <p className="text-green-600 text-2xl font-bold">
-              ${totalPaid.toLocaleString('es-CO')} COP
+              ${totalPaid.toLocaleString('es-CO')}
             </p>
             <p className="text-gray-400 text-sm mt-1">{getPaidPercentage().toFixed(1)}%</p>
           </motion.div>
@@ -308,9 +308,22 @@ function FortnightContent() {
           >
             <p className="text-gray-500 text-sm mb-2">Por Pagar</p>
             <p className="text-red-600 text-2xl font-bold">
-              ${getPending().toLocaleString('es-CO')} COP
+              ${getPending().toLocaleString('es-CO')}
             </p>
             <p className="text-gray-400 text-sm mt-1">Pendiente</p>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.3 }}
+            className="bg-white rounded-xl p-6 shadow-sm"
+          >
+            <p className="text-gray-500 text-sm mb-2">Restante</p>
+            <p className="text-blue-600 text-2xl font-bold">
+              ${getRemaining().toLocaleString('es-CO')}
+            </p>
+            <p className="text-gray-400 text-sm mt-1">{getRemainingPercentage().toFixed(1)}%</p>
           </motion.div>
         </div>
 
