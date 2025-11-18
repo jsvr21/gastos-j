@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { auth, db } from '@/lib/firebase/config'
 import { doc, setDoc, getDoc } from 'firebase/firestore'
 import { signInWithCustomToken } from 'firebase/auth'
+import { saveSecureCredentials, getSecureCredentials, deleteSecureCredentials } from '@/lib/crypto/secureStorage'
 
 interface BiometricCredential {
     credentialId: string
@@ -97,8 +98,9 @@ export function useBiometricAuth() {
 
     /**
      * REGISTRAR BIOMETRÍA para el usuario actual
+     * @param password - Password del usuario para guardarlo de forma segura
      */
-    const register = async (): Promise<boolean> => {
+    const register = async (password: string): Promise<boolean> => {
         setLoading(true)
         setError(null)
 
@@ -179,6 +181,10 @@ export function useBiometricAuth() {
             // Guardar también en localStorage para login rápido
             localStorage.setItem('biometric_user_id', user.uid)
             localStorage.setItem('biometric_credential_id', credential.id)
+            localStorage.setItem('biometric_user_email', user.email || '')
+            
+            // Guardar credenciales encriptadas de forma segura
+            await saveSecureCredentials(user.uid, user.email || '', password)
 
             setIsRegistered(true)
             setLoading(false)
@@ -220,17 +226,7 @@ export function useBiometricAuth() {
                 throw new Error('No hay credenciales biométricas guardadas. Registra primero.')
             }
 
-            // Obtener datos del usuario de Firestore
-            const userDoc = await getDoc(doc(db, 'users', savedUserId))
-            const userData = userDoc.data()
-
-            if (!userData?.biometricEnabled || !userData?.biometricCredentialId) {
-                throw new Error('Biometría no activada para este usuario')
-            }
-
             const challenge = generateChallenge()
-
-            
             
             // Autenticar con biometría
             const assertion = await navigator.credentials.get({
@@ -251,24 +247,9 @@ export function useBiometricAuth() {
                 throw new Error('Autenticación fallida')
             }
 
-            // Aquí en producción validarías la firma en el servidor
-            // Por ahora hacemos login directo con el email guardado
-            const email = userData.email
-            if (!email) {
-                throw new Error('No se encontró el email del usuario')
-            }
-
-            // Actualizar última autenticación
-            await setDoc(
-                doc(db, 'users', savedUserId),
-                {
-                    lastBiometricAuth: new Date(),
-                },
-                { merge: true }
-            )
-
+            // Biometría verificada exitosamente
             setLoading(false)
-            return true // Retorna true, el componente manejará el login
+            return true
         } catch (err: any) {
             console.error('Error autenticando con biometría:', err)
 
@@ -314,6 +295,10 @@ export function useBiometricAuth() {
             // Limpiar localStorage
             localStorage.removeItem('biometric_user_id')
             localStorage.removeItem('biometric_credential_id')
+            localStorage.removeItem('biometric_user_email')
+            
+            // Eliminar credenciales seguras
+            await deleteSecureCredentials()
 
             setIsRegistered(false)
             setLoading(false)
@@ -327,19 +312,35 @@ export function useBiometricAuth() {
     }
 
     /**
-     * Obtener datos del usuario guardado (para el login)
+     * Obtener datos del usuario guardado (para el login) - LEGACY
      */
     const getSavedUserEmail = async (): Promise<string | null> => {
         try {
-            const savedUserId = localStorage.getItem('biometric_user_id')
-            if (!savedUserId) return null
-
-            const userDoc = await getDoc(doc(db, 'users', savedUserId))
-            const userData = userDoc.data()
-
-            return userData?.email || null
+            const credentials = await getSecureCredentials()
+            return credentials?.email || null
         } catch (err) {
             console.error('Error obteniendo email:', err)
+            return null
+        }
+    }
+
+    /**
+     * Obtener credenciales completas (email + password desencriptado)
+     */
+    const getSecureUserCredentials = async (): Promise<{
+        email: string
+        password: string
+    } | null> => {
+        try {
+            const credentials = await getSecureCredentials()
+            if (!credentials) return null
+            
+            return {
+                email: credentials.email,
+                password: credentials.password
+            }
+        } catch (err) {
+            console.error('Error obteniendo credenciales seguras:', err)
             return null
         }
     }
@@ -385,6 +386,7 @@ export function useBiometricAuth() {
         unregister,
         getBiometricName,
         getSavedUserEmail,
+        getSecureUserCredentials,
         hasStoredCredentials,
     }
 }

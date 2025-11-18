@@ -1,7 +1,7 @@
 // /components/BiometricButton.tsx
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { signInWithEmailAndPassword } from 'firebase/auth'
 import { auth } from '@/lib/firebase/config'
@@ -13,55 +13,54 @@ import { useBiometricAuth } from '@/lib/hooks/useBiometricAuth'
 export default function BiometricButton() {
   const router = useRouter()
   const biometric = useBiometricAuth()
-  const [savedEmail, setSavedEmail] = useState<string | null>(null)
   const [showError, setShowError] = useState(false)
-
-  useEffect(() => {
-    loadSavedEmail()
-  }, [])
-
-  const loadSavedEmail = async () => {
-    const email = await biometric.getSavedUserEmail()
-    setSavedEmail(email)
-  }
+  const [errorMessage, setErrorMessage] = useState('')
 
   const handleBiometricLogin = async () => {
     try {
       setShowError(false)
+      setErrorMessage('')
       
-      // Primero autenticar con biometría
+      // Primero autenticar con biometría (solo verifica la huella/rostro)
       const bioSuccess = await biometric.authenticate()
       
       if (!bioSuccess) {
+        setErrorMessage('Autenticación biométrica fallida')
         setShowError(true)
         setTimeout(() => setShowError(false), 5000)
         return
       }
 
-      // Obtener credenciales del usuario
-      const email = await biometric.getSavedUserEmail()
+      // Biometría verificada, ahora obtener credenciales seguras
+      const credentials = await biometric.getSecureUserCredentials()
       
-      if (!email) {
+      if (!credentials) {
+        setErrorMessage('No se encontraron credenciales guardadas')
         setShowError(true)
         return
       }
 
-      // Hacer login con Firebase (necesitarás guardar un token o usar un método alternativo)
-      // Por ahora, redirigimos directamente ya que la biometría es la segunda capa
-      // En producción, deberías generar un token temporal en el servidor
-      
-      // OPCIÓN 1: Login tradicional después de biometría (requiere password guardado - NO RECOMENDADO)
-      // OPCIÓN 2: Crear un custom token en el servidor (RECOMENDADO)
-      // OPCIÓN 3: Usar el estado de autenticación de biometría (Lo que haremos)
-      
-      // Por seguridad, por ahora solo permitimos si ya hay sesión activa
-      // En producción, deberías implementar un endpoint que genere un custom token
-      // después de verificar la firma biométrica
-      
-      router.push('/home')
+      // Hacer login real con Firebase usando las credenciales desencriptadas
+      try {
+        await signInWithEmailAndPassword(auth, credentials.email, credentials.password)
+        // Login exitoso, redirigir
+        router.push('/home')
+      } catch (loginError: any) {
+        console.error('Error en login:', loginError)
+        
+        if (loginError.code === 'auth/wrong-password' || loginError.code === 'auth/user-not-found') {
+          setErrorMessage('Credenciales inválidas. Reactiva la biometría desde tu perfil.')
+        } else if (loginError.code === 'auth/too-many-requests') {
+          setErrorMessage('Demasiados intentos. Espera unos minutos.')
+        } else {
+          setErrorMessage('Error al iniciar sesión. Intenta nuevamente.')
+        }
+        setShowError(true)
+      }
       
     } catch (error) {
       console.error('Error en login biométrico:', error)
+      setErrorMessage('Error en la autenticación biométrica')
       setShowError(true)
       setTimeout(() => setShowError(false), 5000)
     }
@@ -108,13 +107,6 @@ export default function BiometricButton() {
         )}
       </motion.button>
 
-      {/* Mostrar email guardado */}
-      {savedEmail && (
-        <p className="text-center text-sm text-gray-500">
-          {savedEmail}
-        </p>
-      )}
-
       {/* Error de autenticación */}
       <AnimatePresence>
         {(showError || biometric.error) && (
@@ -125,7 +117,7 @@ export default function BiometricButton() {
             className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm flex items-start gap-2"
           >
             <FiAlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
-            <span>{biometric.error || 'Error en la autenticación biométrica'}</span>
+            <span>{errorMessage || biometric.error || 'Error en la autenticación biométrica'}</span>
           </motion.div>
         )}
       </AnimatePresence>

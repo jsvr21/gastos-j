@@ -3,7 +3,7 @@
 
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { FiShield, FiCheck, FiX, FiAlertCircle, FiAlertTriangle } from 'react-icons/fi'
+import { FiShield, FiCheck, FiX, FiAlertCircle, FiAlertTriangle, FiLock } from 'react-icons/fi'
 import { MdFingerprint as FiFingerprint } from "react-icons/md";
 import { useBiometricAuth } from '@/lib/hooks/useBiometricAuth'
 import ConfirmModal from '@/components/ConfirmModal'
@@ -12,6 +12,9 @@ export default function BiometricSettings() {
   const biometric = useBiometricAuth()
   const [showSuccess, setShowSuccess] = useState(false)
   const [showDisableModal, setShowDisableModal] = useState(false)
+  const [showPasswordModal, setShowPasswordModal] = useState(false)
+  const [password, setPassword] = useState('')
+  const [passwordError, setPasswordError] = useState('')
   const [testAuth, setTestAuth] = useState(false)
 
   const handleToggleBiometric = async () => {
@@ -19,12 +22,31 @@ export default function BiometricSettings() {
       // Mostrar modal de confirmación para desactivar
       setShowDisableModal(true)
     } else {
-      // Activar directamente
-      const success = await biometric.register()
-      if (success) {
-        setShowSuccess(true)
-        setTimeout(() => setShowSuccess(false), 3000)
-      }
+      // Mostrar modal para ingresar contraseña
+      setShowPasswordModal(true)
+      setPassword('')
+      setPasswordError('')
+    }
+  }
+
+  const confirmActivate = async () => {
+    if (!password.trim()) {
+      setPasswordError('Por favor ingresa tu contraseña')
+      return
+    }
+
+    setPasswordError('')
+    
+    // Activar con la contraseña
+    const success = await biometric.register(password)
+    
+    if (success) {
+      setShowSuccess(true)
+      setTimeout(() => setShowSuccess(false), 3000)
+      setShowPasswordModal(false)
+      setPassword('')
+    } else {
+      setPasswordError('Error al activar biometría. Verifica tu contraseña.')
     }
   }
 
@@ -218,6 +240,88 @@ export default function BiometricSettings() {
           </motion.div>
         )}
       </div>
+
+      {/* Modal para ingresar contraseña */}
+      <AnimatePresence>
+        {showPasswordModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            onClick={() => setShowPasswordModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6"
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
+                  <FiLock className="w-6 h-6 text-purple-600" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-gray-800">
+                    Confirma tu contraseña
+                  </h3>
+                  <p className="text-sm text-gray-500">
+                    Para activar la biometría
+                  </p>
+                </div>
+              </div>
+
+              <div className="mb-4">
+                <p className="text-sm text-gray-600 mb-4">
+                  Por seguridad, necesitamos verificar tu contraseña antes de activar 
+                  la autenticación biométrica.
+                </p>
+
+                <input
+                  type="password"
+                  placeholder="Ingresa tu contraseña"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && confirmActivate()}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition text-gray-900"
+                  autoFocus
+                />
+
+                {passwordError && (
+                  <motion.p
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="text-red-600 text-sm mt-2"
+                  >
+                    {passwordError}
+                  </motion.p>
+                )}
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setShowPasswordModal(false)
+                    setPassword('')
+                    setPasswordError('')
+                  }}
+                  className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-semibold transition"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={confirmActivate}
+                  disabled={biometric.loading}
+                  className="flex-1 px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-semibold transition disabled:opacity-70 disabled:cursor-not-allowed"
+                >
+                  {biometric.loading ? 'Activando...' : 'Activar'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Modal de confirmación para desactivar */}
       <ConfirmModal
