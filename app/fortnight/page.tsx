@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { collection, query, where, getDocs, getDoc, orderBy, doc, deleteDoc, updateDoc } from 'firebase/firestore'
 import { auth, db } from '@/lib/firebase/config'
 import { motion, AnimatePresence } from 'framer-motion'
-import { FiArrowLeft, FiPlus, FiEdit2, FiTrash2, FiCheck, FiFilter, FiX, FiDollarSign, FiAlertTriangle, FiPaperclip, FiEye } from 'react-icons/fi'
+import { FiArrowLeft, FiPlus, FiEdit2, FiTrash2, FiCheck, FiFilter, FiX, FiDollarSign, FiAlertTriangle, FiPaperclip, FiEye, FiAlertCircle } from 'react-icons/fi'
 import Watermark from '@/components/Watermark'
 import ConfirmModal from '@/components/ConfirmModal'
 
@@ -244,7 +244,7 @@ function FortnightContent() {
 
   const getRemaining = (): number => {
     if (!fortnight) return 0
-    return Math.max(0, fortnight.total - totalSpent)
+    return fortnight.total - totalSpent // Permitir negativos
   }
 
   const getPending = (): number => {
@@ -253,12 +253,12 @@ function FortnightContent() {
 
   const getCurrentBalance = (): number => {
     if (!fortnight) return 0
-    return fortnight.total - totalPaid
+    return fortnight.total - totalPaid // Permitir negativos
   }
 
   const getPercentage = (): number => {
     if (!fortnight || fortnight.total === 0) return 0
-    return Math.min(100, (totalSpent / fortnight.total) * 100)
+    return (totalSpent / fortnight.total) * 100 // Sin límite de 100%
   }
 
   const getPaidPercentage = (): number => {
@@ -268,12 +268,22 @@ function FortnightContent() {
 
   const getRemainingPercentage = (): number => {
     if (!fortnight || fortnight.total === 0) return 0
-    return Math.max(0, (getRemaining() / fortnight.total) * 100)
+    const percentage = (getRemaining() / fortnight.total) * 100
+    return Math.max(0, percentage) // Solo para visualización
   }
 
   const getCurrentBalancePercentage = (): number => {
     if (!fortnight || fortnight.total === 0) return 0
-    return Math.max(0, (getCurrentBalance() / fortnight.total) * 100)
+    const percentage = (getCurrentBalance() / fortnight.total) * 100
+    return Math.max(0, percentage) // Solo para visualización
+  }
+
+  const isOverBudget = (): boolean => {
+    return getRemaining() < 0
+  }
+
+  const getOverBudgetAmount = (): number => {
+    return Math.abs(getRemaining())
   }
 
   const viewExpenseDetails = (expense: Expense) => {
@@ -301,6 +311,37 @@ function FortnightContent() {
           Atrás
         </motion.button>
 
+        {/* Alerta de sobrepresupuesto */}
+        <AnimatePresence>
+          {isOverBudget() && (
+            <motion.div
+              initial={{ opacity: 0, y: -20, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -20, scale: 0.95 }}
+              className="bg-gradient-to-r from-red-500 to-orange-500 rounded-2xl p-6 mb-6 shadow-xl"
+            >
+              <div className="flex items-start gap-4">
+                <div className="flex-shrink-0">
+                  <FiAlertCircle className="w-8 h-8 text-white" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-white text-xl font-bold mb-2">
+                    ⚠️ ¡Te sobrepasaste en gastos!
+                  </h3>
+                  <p className="text-white/90 text-sm mb-3">
+                    Tus gastos han excedido el total de la quincena. Revisa tu presupuesto y considera ajustar tus gastos.
+                  </p>
+                  <div className="bg-white/20 backdrop-blur-sm rounded-lg p-3 inline-block">
+                    <p className="text-white text-sm font-semibold">
+                      Sobrepasado por: <span className="text-2xl font-bold">${getOverBudgetAmount().toLocaleString('es-CO')} COP</span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -323,13 +364,22 @@ function FortnightContent() {
           <motion.div
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
-            className="bg-white rounded-xl p-6 shadow-sm"
+            className={`bg-white rounded-xl p-6 shadow-sm ${
+              isOverBudget() ? 'ring-2 ring-red-500' : ''
+            }`}
           >
             <p className="text-gray-500 text-sm mb-2">Total Gastos</p>
-            <p className="text-orange-600 text-2xl font-bold">
+            <p className={`text-2xl font-bold ${
+              isOverBudget() ? 'text-red-600' : 'text-orange-600'
+            }`}>
               ${totalSpent.toLocaleString('es-CO')}
             </p>
-            <p className="text-gray-400 text-sm mt-1">{getPercentage().toFixed(1)}%</p>
+            <p className={`text-sm mt-1 font-semibold ${
+              isOverBudget() ? 'text-red-500' : 'text-gray-400'
+            }`}>
+              {getPercentage().toFixed(1)}%
+              {isOverBudget() && ' ⚠️'}
+            </p>
           </motion.div>
 
           <motion.div
@@ -362,30 +412,51 @@ function FortnightContent() {
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.3 }}
-            className="bg-white rounded-xl p-6 shadow-sm"
+            className={`rounded-xl p-6 shadow-sm ${
+              isOverBudget() 
+                ? 'bg-gradient-to-br from-red-500 to-orange-500 ring-2 ring-red-400'
+                : 'bg-white'
+            }`}
           >
-            <p className="text-gray-500 text-sm mb-2">Sobrante</p>
-            <p className="text-blue-600 text-2xl font-bold">
-              ${getRemaining().toLocaleString('es-CO')}
+            <p className={`text-sm mb-2 ${
+              isOverBudget() ? 'text-white font-semibold' : 'text-gray-500'
+            }`}>
+              {isOverBudget() ? 'Déficit' : 'Sobrante'}
             </p>
-            <p className="text-gray-400 text-sm mt-1">{getRemainingPercentage().toFixed(1)}%</p>
+            <p className={`text-2xl font-bold ${
+              isOverBudget() ? 'text-white' : 'text-blue-600'
+            }`}>
+              {isOverBudget() && '-'}${Math.abs(getRemaining()).toLocaleString('es-CO')}
+            </p>
+            <p className={`text-sm mt-1 ${
+              isOverBudget() ? 'text-white/80 font-semibold' : 'text-gray-400'
+            }`}>
+              {isOverBudget() ? '⚠️ Sobrepasado' : `${getRemainingPercentage().toFixed(1)}%`}
+            </p>
           </motion.div>
 
           <motion.div
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.4 }}
-            className="bg-gradient-to-br from-teal-500 to-cyan-600 rounded-xl p-6 shadow-lg"
+            className={`rounded-xl p-6 shadow-lg ${
+              getCurrentBalance() < 0
+                ? 'bg-gradient-to-br from-orange-500 to-red-600'
+                : 'bg-gradient-to-br from-teal-500 to-cyan-600'
+            }`}
           >
             <div className="flex items-center gap-2 mb-2">
               <FiDollarSign className="w-4 h-4 text-white" />
               <p className="text-white text-sm font-semibold">Saldo Actual</p>
             </div>
             <p className="text-white text-2xl font-bold">
-              ${getCurrentBalance().toLocaleString('es-CO')}
+              {getCurrentBalance() < 0 && '-'}${Math.abs(getCurrentBalance()).toLocaleString('es-CO')}
             </p>
-            <p className="text-white/80 text-sm mt-1">
-              {getCurrentBalancePercentage().toFixed(1)}% disponible
+            <p className="text-white/80 text-sm mt-1 font-semibold">
+              {getCurrentBalance() < 0 
+                ? '⚠️ Saldo negativo' 
+                : `${getCurrentBalancePercentage().toFixed(1)}% disponible`
+              }
             </p>
           </motion.div>
         </div>

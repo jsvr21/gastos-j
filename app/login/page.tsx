@@ -1,3 +1,4 @@
+// /app/page.tsx (o donde tengas el login)
 'use client'
 
 import { useState, FormEvent } from 'react'
@@ -7,6 +8,7 @@ import { auth } from '@/lib/firebase/config'
 import { motion } from 'framer-motion'
 import { FiUser, FiLock, FiCode } from 'react-icons/fi'
 import Image from 'next/image'
+import BiometricButton from '@/components/BiometricButton'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -27,7 +29,6 @@ export default function LoginPage() {
     setError('')
     
     try {
-      // Verificar que auth esté inicializado
       if (!auth || typeof auth === 'object' && Object.keys(auth).length === 0) {
         setError('El sistema no está disponible. Por favor recarga la página.')
         setLoading(false)
@@ -37,17 +38,14 @@ export default function LoginPage() {
       const email = username.includes('@') ? username : `${username}@gastos.com`
       
       try {
-        // Intentar iniciar sesión primero
         await signInWithEmailAndPassword(auth, email, password)
         router.push('/home')
       } catch (signInError: any) {
         console.log('Sign in error:', signInError.code, signInError.message)
         
-        // Si el usuario no existe, crearlo
         if (signInError.code === 'auth/user-not-found') {
           try {
             const userCredential = await createUserWithEmailAndPassword(auth, email, password)
-            // Inicializar datos del usuario
             try {
               const { initializeUserData } = await import('@/lib/firebase/initUser')
               await initializeUserData(userCredential.user.uid)
@@ -85,7 +83,6 @@ export default function LoginPage() {
         } else if (signInError.code === 'auth/user-disabled') {
           setError('Esta cuenta ha sido deshabilitada. Contacta al administrador')
         } else {
-          // Mensaje genérico para errores no específicos
           setError('Credenciales incorrectas. Verifica tu usuario y contraseña')
         }
       }
@@ -128,7 +125,6 @@ export default function LoginPage() {
           transition={{ delay: 0.1, duration: 0.5 }}
           className="text-center mb-8"
         >
-          {/* Logo circular con animación */}
           <motion.div
             initial={{ rotate: -10, scale: 0.8 }}
             animate={{ rotate: 0, scale: 1 }}
@@ -148,7 +144,6 @@ export default function LoginPage() {
                 />
               </div>
             </div>
-            {/* Círculo decorativo animado */}
             <motion.div
               animate={{
                 scale: [1, 1.2, 1],
@@ -236,6 +231,9 @@ export default function LoginPage() {
           >
             {loading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
           </button>
+
+          {/* BOTÓN DE BIOMETRÍA */}
+          <BiometricButton />
 
           <div className="text-center mt-4">
             <p className="text-gray-600 text-sm">

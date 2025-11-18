@@ -13,6 +13,9 @@ import {
 } from 'react-icons/fi'
 import Image from 'next/image'
 import ConfirmModal from '@/components/ConfirmModal'
+import BiometricSettings from '@/components/BiometricSettings'
+import { FiAlertCircle } from 'react-icons/fi'
+import { MdFingerprint as FiFingerprint } from "react-icons/md";
 
 interface UserStats {
     totalFortnights: number
@@ -395,6 +398,24 @@ export default function ProfilePage() {
                                 </div>
                             </motion.div>
                         )}
+
+
+                        <div className="bg-white rounded-xl shadow-sm overflow-hidden mb-6">
+                            <div className="p-4 border-b border-gray-100">
+                                <h4 className="font-semibold text-gray-800 flex items-center gap-2">
+                                    <FiFingerprint className="w-5 h-5 text-purple-600" />
+                                    Autenticación Biométrica
+                                </h4>
+                                <p className="text-sm text-gray-500 mt-1">
+                                    Configura Face ID, Touch ID o Huella Digital
+                                </p>
+                            </div>
+                            <div className="p-4">
+                                <BiometricSettings />
+                            </div>
+                        </div>
+
+
 
                         <button
                             onClick={handleLogout}
