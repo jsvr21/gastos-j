@@ -3,10 +3,11 @@
 
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { FiShield, FiCheck, FiX, FiAlertCircle, FiAlertTriangle, FiLock } from 'react-icons/fi'
+import { FiShield, FiCheck, FiX, FiAlertCircle, FiAlertTriangle, FiLock, FiEye, FiEyeOff } from 'react-icons/fi'
 import { MdFingerprint as FiFingerprint } from "react-icons/md";
 import { useBiometricAuth } from '@/lib/hooks/useBiometricAuth'
 import ConfirmModal from '@/components/ConfirmModal'
+import { auth } from '@/lib/firebase/config'
 
 export default function BiometricSettings() {
   const biometric = useBiometricAuth()
@@ -16,6 +17,7 @@ export default function BiometricSettings() {
   const [password, setPassword] = useState('')
   const [passwordError, setPasswordError] = useState('')
   const [testAuth, setTestAuth] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
 
   const handleToggleBiometric = async () => {
     if (biometric.isRegistered) {
@@ -30,23 +32,74 @@ export default function BiometricSettings() {
   }
 
   const confirmActivate = async () => {
-    if (!password.trim()) {
+    const trimmedPassword = password.trim()
+    
+    if (!trimmedPassword) {
       setPasswordError('Por favor ingresa tu contraseña')
       return
     }
 
     setPasswordError('')
     
-    // Activar con la contraseña
-    const success = await biometric.register(password)
+    // Primero verificar que la contraseña sea correcta
+    try {
+      const user = auth.currentUser
+      if (!user || !user.email) {
+        setPasswordError('No se encontró el usuario actual')
+        return
+      }
+
+      console.log('🔐 Verificando contraseña para:', user.email)
+
+      // Verificar contraseña intentando re-autenticar
+      const { EmailAuthProvider, reauthenticateWithCredential } = await import('firebase/auth')
+      const credential = EmailAuthProvider.credential(user.email, trimmedPassword)
+      
+      try {
+        console.log('✅ Intentando re-autenticar...')
+        await reauthenticateWithCredential(user, credential)
+        console.log('✅ Contraseña verificada correctamente')
+        // Contraseña correcta, ahora activar biometría
+      } catch (authError: any) {
+        console.error('❌ Error verificando contraseña:', authError.code, authError.message)
+        
+        if (authError.code === 'auth/wrong-password') {
+          setPasswordError('❌ Contraseña incorrecta. Verifica que sea la misma que usas para iniciar sesión.')
+        } else if (authError.code === 'auth/too-many-requests') {
+          setPasswordError('⏸️ Demasiados intentos fallidos. Por favor espera unos minutos e intenta de nuevo.')
+        } else if (authError.code === 'auth/invalid-credential') {
+          setPasswordError('❌ Credenciales inválidas. Verifica tu contraseña.')
+        } else if (authError.code === 'auth/user-mismatch') {
+          setPasswordError('❌ El usuario no coincide. Cierra sesión e intenta de nuevo.')
+        } else if (authError.code === 'auth/user-not-found') {
+          setPasswordError('❌ Usuario no encontrado. Cierra sesión e inicia de nuevo.')
+        } else if (authError.code === 'auth/requires-recent-login') {
+          setPasswordError('⚠️ Por seguridad, cierra sesión e inicia de nuevo antes de activar la biometría.')
+        } else {
+          setPasswordError(`❌ Error: ${authError.message || 'No se pudo verificar la contraseña'}`)
+        }
+        return
+      }
+    } catch (error: any) {
+      console.error('❌ Error general en verificación:', error)
+      setPasswordError('❌ Error al verificar credenciales. Intenta de nuevo.')
+      return
+    }
+    
+    console.log('🔒 Contraseña verificada, procediendo a registrar biometría...')
+    
+    // Contraseña verificada, ahora activar biometría
+    const success = await biometric.register(trimmedPassword)
     
     if (success) {
+      console.log('✅ Biometría activada exitosamente')
       setShowSuccess(true)
       setTimeout(() => setShowSuccess(false), 3000)
       setShowPasswordModal(false)
       setPassword('')
     } else {
-      setPasswordError('Error al activar biometría. Verifica tu contraseña.')
+      console.error('❌ Error al activar biometría:', biometric.error)
+      setPasswordError(biometric.error || '❌ Error al activar biometría. Intenta nuevamente.')
     }
   }
 
@@ -273,29 +326,51 @@ export default function BiometricSettings() {
               </div>
 
               <div className="mb-4">
-                <p className="text-sm text-gray-600 mb-4">
+                <p className="text-sm text-gray-600 mb-3">
                   Por seguridad, necesitamos verificar tu contraseña antes de activar 
                   la autenticación biométrica.
                 </p>
 
-                <input
-                  type="password"
-                  placeholder="Ingresa tu contraseña"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && confirmActivate()}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition text-gray-900"
-                  autoFocus
-                />
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                  <p className="text-xs text-blue-800">
+                    💡 <strong>Importante:</strong> Ingresa la misma contraseña que usas para iniciar sesión.
+                  </p>
+                </div>
+
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Ingresa tu contraseña"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && confirmActivate()}
+                    className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition text-gray-900"
+                    autoFocus
+                    autoComplete="current-password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition"
+                  >
+                    {showPassword ? (
+                      <FiEyeOff className="w-5 h-5" />
+                    ) : (
+                      <FiEye className="w-5 h-5" />
+                    )}
+                  </button>
+                </div>
 
                 {passwordError && (
-                  <motion.p
+                  <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    className="text-red-600 text-sm mt-2"
+                    className="bg-red-50 border border-red-200 rounded-lg p-3 mt-3"
                   >
-                    {passwordError}
-                  </motion.p>
+                    <p className="text-red-700 text-sm font-semibold">
+                      {passwordError}
+                    </p>
+                  </motion.div>
                 )}
               </div>
 
