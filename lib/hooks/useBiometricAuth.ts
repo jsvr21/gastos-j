@@ -114,9 +114,16 @@ export function useBiometricAuth() {
                 throw new Error('Biometría no disponible en este dispositivo')
             }
 
+            console.log('🔐 Iniciando registro de biometría...')
             const challenge = generateChallenge()
 
-            // Crear credencial biométrica
+            // Detectar si es iOS/Safari
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+            const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
+            
+            console.log('📱 Dispositivo:', { isIOS, isSafari, userAgent: navigator.userAgent })
+
+            // Crear credencial biométrica - Configuración optimizada para iOS
             const credential = await navigator.credentials.create({
                 publicKey: {
                     challenge: challenge,
@@ -129,24 +136,25 @@ export function useBiometricAuth() {
                     },
 
                     user: {
-                        id: new TextEncoder().encode(user.uid),
+                        id: new TextEncoder().encode(user.uid).buffer,
                         name: user.email || 'usuario',
                         displayName: user.email?.split('@')[0] || 'Usuario',
                     },
 
                     pubKeyCredParams: [
-                        { alg: -7, type: 'public-key' },
-                        { alg: -257, type: 'public-key' },
+                        { alg: -7, type: 'public-key' },   // ES256 (preferido por iOS)
+                        { alg: -257, type: 'public-key' }, // RS256 (Windows Hello)
                     ],
 
                     authenticatorSelection: {
                         authenticatorAttachment: 'platform',
                         userVerification: 'required',
-                        requireResidentKey: false,
+                        requireResidentKey: true, // ← iOS requiere true
+                        residentKey: 'required', // ← Explícito para iOS 14+
                     },
 
                     timeout: 60000,
-                    attestation: 'none',
+                    attestation: 'direct', // ← iOS prefiere 'direct' o 'indirect'
                 },
             }) as PublicKeyCredential;
 
@@ -155,17 +163,35 @@ export function useBiometricAuth() {
                 throw new Error('No se pudo crear la credencial')
             }
 
+            console.log('✅ Credencial creada:', {
+                id: credential.id,
+                type: credential.type,
+                rawId: credential.rawId
+            })
 
-
-            // Extraer datos de la credencial
+            // Extraer datos de la credencial - Compatible con iOS
             const response = credential.response as AuthenticatorAttestationResponse
-            const rawPublicKey = response.getPublicKey();
-
-            const publicKey = arrayBufferToBase64(
-                toArrayBuffer(rawPublicKey)
-            );
+            
+            let publicKey: string
+            try {
+                const rawPublicKey = response.getPublicKey()
+                
+                if (!rawPublicKey) {
+                    console.warn('⚠️ No se pudo obtener publicKey, usando credentialId')
+                    // Fallback: usar el credentialId como referencia
+                    const encoded = new TextEncoder().encode(credential.id)
+                    publicKey = arrayBufferToBase64(encoded.buffer)
+                } else {
+                    publicKey = arrayBufferToBase64(toArrayBuffer(rawPublicKey))
+                }
+            } catch (err) {
+                console.warn('⚠️ Error extrayendo publicKey, usando credentialId como fallback:', err)
+                const encoded = new TextEncoder().encode(credential.id)
+                publicKey = arrayBufferToBase64(encoded.buffer)
+            }
 
             // Guardar en Firestore
+            console.log('💾 Guardando credenciales en Firestore...')
             await setDoc(
                 doc(db, 'users', user.uid),
                 {
@@ -174,32 +200,51 @@ export function useBiometricAuth() {
                     biometricPublicKey: publicKey,
                     biometricRegisteredAt: new Date(),
                     email: user.email,
+                    // Guardar info del dispositivo para debugging
+                    biometricDevice: {
+                        userAgent: navigator.userAgent,
+                        platform: navigator.platform,
+                    }
                 },
                 { merge: true }
             )
+            console.log('✅ Credenciales guardadas en Firestore')
 
             // Guardar también en localStorage para login rápido
+            console.log('💾 Guardando en localStorage...')
             localStorage.setItem('biometric_user_id', user.uid)
             localStorage.setItem('biometric_credential_id', credential.id)
             localStorage.setItem('biometric_user_email', user.email || '')
             
             // Guardar credenciales encriptadas de forma segura
-            await saveSecureCredentials(user.uid, user.email || '', password)
+            console.log('🔐 Guardando credenciales encriptadas...')
+            try {
+                await saveSecureCredentials(user.uid, user.email || '', password)
+                console.log('✅ Credenciales encriptadas guardadas')
+            } catch (storageErr) {
+                console.error('⚠️ Error guardando credenciales encriptadas (no crítico):', storageErr)
+                // No fallar si esto falla, la biometría ya está registrada
+            }
 
+            console.log('✅ Biometría registrada exitosamente')
             setIsRegistered(true)
             setLoading(false)
             return true
         } catch (err: any) {
-            console.error('Error registrando biometría:', err)
+            console.error('❌ Error registrando biometría:', err)
 
             let errorMessage = 'Error al registrar biometría'
 
             if (err.name === 'NotAllowedError') {
-                errorMessage = 'Permiso denegado. Permite el acceso a la biometría en tu dispositivo.'
+                errorMessage = 'Permiso denegado. Permite el acceso a Face ID/Touch ID en Ajustes → Safari → Cámara y Micrófono.'
             } else if (err.name === 'NotSupportedError') {
-                errorMessage = 'Biometría no soportada en este navegador. Usa Chrome, Safari o Edge.'
+                errorMessage = 'Biometría no soportada. Usa Safari en iOS 14+ o Chrome/Edge en escritorio.'
             } else if (err.name === 'InvalidStateError') {
-                errorMessage = 'Ya existe una credencial registrada. Desactívala primero.'
+                errorMessage = 'Ya existe una credencial. Desactívala primero o usa otro dispositivo.'
+            } else if (err.name === 'AbortError') {
+                errorMessage = 'Operación cancelada. Intenta de nuevo.'
+            } else if (err.name === 'SecurityError') {
+                errorMessage = 'Error de seguridad. Verifica que estés usando HTTPS o localhost.'
             } else if (err.message) {
                 errorMessage = err.message
             }
@@ -246,6 +291,8 @@ export function useBiometricAuth() {
             if (!assertion) {
                 throw new Error('Autenticación fallida')
             }
+
+            console.log('✅ Autenticación biométrica exitosa')
 
             // Biometría verificada exitosamente
             setLoading(false)
