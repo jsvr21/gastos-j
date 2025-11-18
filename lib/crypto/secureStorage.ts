@@ -1,12 +1,19 @@
 // /lib/crypto/secureStorage.ts
 /**
  * Almacenamiento seguro con encriptación Web Crypto API
- * NO usa localStorage - usa IndexedDB que es más seguro
+ * Usa IndexedDB como primario y localStorage como fallback para iOS
  */
 
 const DB_NAME = 'SecureAuthDB'
 const STORE_NAME = 'credentials'
 const DB_VERSION = 1
+const LOCALSTORAGE_KEY = 'secure_biometric_credentials'
+
+// Detectar si estamos en iOS
+const isIOSSafari = (): boolean => {
+  const ua = navigator.userAgent.toLowerCase()
+  return /iphone|ipad|ipod/.test(ua) && /safari/.test(ua)
+}
 
 // Abrir/crear base de datos IndexedDB
 const openDB = (): Promise<IDBDatabase> => {
@@ -71,7 +78,7 @@ const encrypt = async (data: string, userId: string): Promise<string> => {
     }
     return btoa(binary)
   } catch (error) {
-    console.error('Error encriptando:', error)
+    console.error('❌ Error encriptando:', error)
     throw new Error('Error al encriptar datos')
   }
 }
@@ -101,34 +108,19 @@ const decrypt = async (encryptedData: string, userId: string): Promise<string> =
     const decoder = new TextDecoder()
     return decoder.decode(decryptedBuffer)
   } catch (error) {
-    console.error('Error desencriptando:', error)
+    console.error('❌ Error desencriptando:', error)
     throw new Error('Error al desencriptar datos')
   }
 }
 
 /**
- * Guardar credenciales de forma segura
+ * Guardar en IndexedDB
  */
-export const saveSecureCredentials = async (
-  userId: string,
-  email: string,
-  password: string
-): Promise<void> => {
+const saveToIndexedDB = async (credentials: any): Promise<boolean> => {
   try {
     const db = await openDB()
     const transaction = db.transaction(STORE_NAME, 'readwrite')
     const store = transaction.objectStore(STORE_NAME)
-    
-    // Encriptar password
-    const encryptedPassword = await encrypt(password, userId)
-    
-    // Guardar en IndexedDB
-    const credentials = {
-      userId,
-      email,
-      encryptedPassword,
-      timestamp: Date.now()
-    }
     
     await new Promise<void>((resolve, reject) => {
       const request = store.put(credentials, 'biometric_credentials')
@@ -137,20 +129,31 @@ export const saveSecureCredentials = async (
     })
     
     db.close()
+    console.log('✅ Credenciales guardadas en IndexedDB')
+    return true
   } catch (error) {
-    console.error('Error guardando credenciales:', error)
-    throw new Error('Error al guardar credenciales seguras')
+    console.warn('⚠️ IndexedDB no disponible:', error)
+    return false
   }
 }
 
 /**
- * Obtener credenciales seguras
+ * Guardar en localStorage (fallback para iOS)
  */
-export const getSecureCredentials = async (): Promise<{
-  userId: string
-  email: string
-  password: string
-} | null> => {
+const saveToLocalStorage = (credentials: any): void => {
+  try {
+    localStorage.setItem(LOCALSTORAGE_KEY, JSON.stringify(credentials))
+    console.log('✅ Credenciales guardadas en localStorage (fallback)')
+  } catch (error) {
+    console.error('❌ Error guardando en localStorage:', error)
+    throw new Error('No se pudo guardar en ningún storage')
+  }
+}
+
+/**
+ * Obtener desde IndexedDB
+ */
+const getFromIndexedDB = async (): Promise<any | null> => {
   try {
     const db = await openDB()
     const transaction = db.transaction(STORE_NAME, 'readonly')
@@ -164,26 +167,37 @@ export const getSecureCredentials = async (): Promise<{
     
     db.close()
     
-    if (!credentials) return null
-    
-    // Desencriptar password
-    const password = await decrypt(credentials.encryptedPassword, credentials.userId)
-    
-    return {
-      userId: credentials.userId,
-      email: credentials.email,
-      password
+    if (credentials) {
+      console.log('✅ Credenciales obtenidas de IndexedDB')
     }
+    return credentials
   } catch (error) {
-    console.error('Error obteniendo credenciales:', error)
+    console.warn('⚠️ Error leyendo IndexedDB:', error)
     return null
   }
 }
 
 /**
- * Eliminar credenciales seguras
+ * Obtener desde localStorage (fallback)
  */
-export const deleteSecureCredentials = async (): Promise<void> => {
+const getFromLocalStorage = (): any | null => {
+  try {
+    const data = localStorage.getItem(LOCALSTORAGE_KEY)
+    if (data) {
+      console.log('✅ Credenciales obtenidas de localStorage (fallback)')
+      return JSON.parse(data)
+    }
+    return null
+  } catch (error) {
+    console.error('❌ Error leyendo localStorage:', error)
+    return null
+  }
+}
+
+/**
+ * Eliminar de IndexedDB
+ */
+const deleteFromIndexedDB = async (): Promise<void> => {
   try {
     const db = await openDB()
     const transaction = db.transaction(STORE_NAME, 'readwrite')
@@ -196,8 +210,120 @@ export const deleteSecureCredentials = async (): Promise<void> => {
     })
     
     db.close()
+    console.log('✅ Credenciales eliminadas de IndexedDB')
   } catch (error) {
-    console.error('Error eliminando credenciales:', error)
+    console.warn('⚠️ Error eliminando de IndexedDB:', error)
+  }
+}
+
+/**
+ * Eliminar de localStorage
+ */
+const deleteFromLocalStorage = (): void => {
+  try {
+    localStorage.removeItem(LOCALSTORAGE_KEY)
+    console.log('✅ Credenciales eliminadas de localStorage')
+  } catch (error) {
+    console.error('❌ Error eliminando de localStorage:', error)
+  }
+}
+
+/**
+ * Guardar credenciales de forma segura
+ * Intenta IndexedDB primero, luego localStorage como fallback
+ */
+export const saveSecureCredentials = async (
+  userId: string,
+  email: string,
+  password: string
+): Promise<void> => {
+  try {
+    console.log('💾 Guardando credenciales seguras...')
+    
+    // Encriptar password
+    const encryptedPassword = await encrypt(password, userId)
+    
+    // Preparar objeto de credenciales
+    const credentials = {
+      userId,
+      email,
+      encryptedPassword,
+      timestamp: Date.now()
+    }
+    
+    // Intentar guardar en IndexedDB
+    const savedInIndexedDB = await saveToIndexedDB(credentials)
+    
+    // Siempre guardar también en localStorage como backup (especialmente para iOS)
+    saveToLocalStorage(credentials)
+    
+    if (!savedInIndexedDB && !isIOSSafari()) {
+      console.warn('⚠️ Solo se pudo guardar en localStorage')
+    }
+    
+    console.log('✅ Credenciales guardadas exitosamente')
+  } catch (error) {
+    console.error('❌ Error guardando credenciales:', error)
+    throw new Error('Error al guardar credenciales seguras')
+  }
+}
+
+/**
+ * Obtener credenciales seguras
+ * Intenta IndexedDB primero, luego localStorage como fallback
+ */
+export const getSecureCredentials = async (): Promise<{
+  userId: string
+  email: string
+  password: string
+} | null> => {
+  try {
+    console.log('🔍 Buscando credenciales seguras...')
+    
+    // Intentar desde IndexedDB primero
+    let credentials = await getFromIndexedDB()
+    
+    // Si no hay en IndexedDB, intentar localStorage
+    if (!credentials) {
+      console.log('⚠️ No hay credenciales en IndexedDB, intentando localStorage...')
+      credentials = getFromLocalStorage()
+    }
+    
+    if (!credentials) {
+      console.log('⚠️ No se encontraron credenciales en ningún storage')
+      return null
+    }
+    
+    // Desencriptar password
+    const password = await decrypt(credentials.encryptedPassword, credentials.userId)
+    
+    console.log('✅ Credenciales desencriptadas correctamente')
+    
+    return {
+      userId: credentials.userId,
+      email: credentials.email,
+      password
+    }
+  } catch (error) {
+    console.error('❌ Error obteniendo credenciales:', error)
+    return null
+  }
+}
+
+/**
+ * Eliminar credenciales seguras de ambos storages
+ */
+export const deleteSecureCredentials = async (): Promise<void> => {
+  try {
+    console.log('🗑️ Eliminando credenciales seguras...')
+    
+    // Eliminar de ambos storages
+    await deleteFromIndexedDB()
+    deleteFromLocalStorage()
+    
+    console.log('✅ Credenciales eliminadas de todos los storages')
+  } catch (error) {
+    console.error('❌ Error eliminando credenciales:', error)
     throw new Error('Error al eliminar credenciales')
   }
 }
